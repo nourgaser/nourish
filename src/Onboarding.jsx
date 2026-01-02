@@ -15,9 +15,19 @@ export const Onboarding = ({ onComplete }) => {
   const next = () => setStep(s => s + 1);
   const finish = () => onComplete(data);
 
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (step === 4) {
+      finish();
+      return;
+    }
+    if (step === 1 && !data.name.trim()) return;
+    next();
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-slate-100 font-sans">
-      <div className="w-full max-w-md">
+      <form onSubmit={handleSubmit} className="w-full max-w-md">
         
         {/* Progress Bar */}
         <div className="flex gap-2 mb-8">
@@ -51,8 +61,8 @@ export const Onboarding = ({ onComplete }) => {
                 />
               </div>
               <button 
+                type="submit"
                 disabled={!data.name}
-                onClick={next}
                 className="w-full mt-6 bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next <ChevronRight size={18} />
@@ -90,7 +100,7 @@ export const Onboarding = ({ onComplete }) => {
                   />
                 </div>
               </div>
-              <button onClick={next} className="w-full mt-6 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all">Next</button>
+              <button type="submit" className="w-full mt-6 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all">Next</button>
             </div>
           )}
 
@@ -111,7 +121,7 @@ export const Onboarding = ({ onComplete }) => {
                 <p className="text-[10px] text-slate-500 mt-1">Usually ~750 EGP for a 3-4 day trip.</p>
               </div>
 
-              <button onClick={next} className="w-full mt-6 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all">Next</button>
+              <button type="submit" className="w-full mt-6 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all">Next</button>
             </div>
           )}
 
@@ -132,7 +142,7 @@ export const Onboarding = ({ onComplete }) => {
               </div>
 
               <button 
-                onClick={finish}
+                type="submit"
                 className="w-full mt-8 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
               >
                 Launch App <Check size={18} />
@@ -141,7 +151,7 @@ export const Onboarding = ({ onComplete }) => {
           )}
 
         </div>
-      </div>
+      </form>
     </div>
   );
 };

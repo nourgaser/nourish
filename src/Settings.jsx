@@ -133,8 +133,8 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 w-full max-w-2xl rounded-2xl border border-slate-800 shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-start justify-center px-3 py-4 sm:p-6 overflow-y-auto">
+      <div className="bg-slate-900 w-full max-w-3xl rounded-2xl border border-slate-800 shadow-2xl flex flex-col h-full max-h-[calc(100vh-2rem)] overflow-hidden">
         
         {/* Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
@@ -145,41 +145,41 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-800">
+        <div className="flex border-b border-slate-800 overflow-x-auto no-scrollbar px-1 sm:px-0">
           <button 
             onClick={() => setActiveTab('profile')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'profile' ? 'text-rose-400 border-b-2 border-rose-400' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`flex-1 min-w-[120px] px-3 py-3 text-sm font-medium transition-colors ${activeTab === 'profile' ? 'text-rose-400 border-b-2 border-rose-400' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Profile & Goals
           </button>
           <button 
             onClick={() => setActiveTab('trip')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'trip' ? 'text-amber-400 border-b-2 border-amber-400' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`flex-1 min-w-[120px] px-3 py-3 text-sm font-medium transition-colors ${activeTab === 'trip' ? 'text-amber-400 border-b-2 border-amber-400' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Trip & Staples
           </button>
           <button 
             onClick={() => setActiveTab('prices')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'prices' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`flex-1 min-w-[120px] px-3 py-3 text-sm font-medium transition-colors ${activeTab === 'prices' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Market Prices
           </button>
           <button 
             onClick={() => setActiveTab('modules')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'modules' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`flex-1 min-w-[120px] px-3 py-3 text-sm font-medium transition-colors ${activeTab === 'modules' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Modules
           </button>
           <button 
             onClick={() => setActiveTab('backup')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'backup' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`flex-1 min-w-[120px] px-3 py-3 text-sm font-medium transition-colors ${activeTab === 'backup' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Backup
           </button>
         </div>
 
         {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           
           {activeTab === 'profile' && (
             <div className="space-y-4">
@@ -368,7 +368,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
               </p>
               {categories.map(cat => (
                 <div key={cat.id} className="border border-slate-800 rounded-xl p-4 bg-slate-950/50 space-y-3">
-                  <div className="flex items-start gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                     <div className="flex-1 space-y-2">
                       <input
                         className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-white text-sm font-semibold focus:border-cyan-400 outline-none"
@@ -382,7 +382,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
                         placeholder="Guidance text"
                       />
                     </div>
-                    <div className="w-32">
+                    <div className="w-full sm:w-32">
                       <label className="text-[10px] uppercase text-slate-500 font-bold">Min</label>
                       <input
                         type="number"
@@ -391,7 +391,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
                         onChange={(e) => updateCategoryField(cat.id, 'minSelection', parseFloat(e.target.value) || 0)}
                       />
                     </div>
-                    <button onClick={() => removeCategory(cat.id)} className="text-slate-600 hover:text-rose-400 transition-colors mt-1">
+                    <button onClick={() => removeCategory(cat.id)} className="text-slate-600 hover:text-rose-400 transition-colors sm:mt-1">
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -399,7 +399,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
                   <div className="space-y-3">
                     {(cat.items || []).map(item => (
                       <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-lg p-3 space-y-2">
-                        <div className="flex items-start gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                           <div className="flex-1 space-y-2">
                             <input
                               className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white focus:border-cyan-400 outline-none"
@@ -412,7 +412,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
                               onChange={(e) => updateItemField(cat.id, item.id, 'qty', e.target.value)}
                             />
                           </div>
-                          <div className="w-20">
+                          <div className="w-full sm:w-20">
                             <label className="text-[10px] uppercase text-slate-500 font-bold">Price</label>
                             <input
                               type="number"
@@ -421,7 +421,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
                               onChange={(e) => updateItemField(cat.id, item.id, 'defaultPrice', parseFloat(e.target.value) || 0)}
                             />
                           </div>
-                          <div className="w-20">
+                          <div className="w-full sm:w-20">
                             <label className="text-[10px] uppercase text-slate-500 font-bold">Cals</label>
                             <input
                               type="number"
@@ -430,7 +430,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
                               onChange={(e) => updateItemField(cat.id, item.id, 'calories', parseFloat(e.target.value) || 0)}
                             />
                           </div>
-                          <div className="w-20">
+                          <div className="w-full sm:w-20">
                             <label className="text-[10px] uppercase text-slate-500 font-bold">Prot</label>
                             <input
                               type="number"
@@ -439,7 +439,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
                               onChange={(e) => updateItemField(cat.id, item.id, 'protein', parseFloat(e.target.value) || 0)}
                             />
                           </div>
-                          <button onClick={() => removeItem(cat.id, item.id)} className="text-slate-600 hover:text-rose-400 transition-colors mt-6">
+                          <button onClick={() => removeItem(cat.id, item.id)} className="text-slate-600 hover:text-rose-400 transition-colors sm:mt-6">
                             <Trash2 size={16} />
                           </button>
                         </div>

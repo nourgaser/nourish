@@ -46,6 +46,17 @@ const App = () => {
   const [viewMode, setViewMode] = useState("plan"); 
   const [showSettings, setShowSettings] = useState(false);
 
+  // Prevent background scroll when overlays are open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    if (showSettings) {
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [showSettings]);
+
   // --- PERSISTENCE ---
   useEffect(() => {
     // Load all data on mount
