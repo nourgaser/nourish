@@ -1,34 +1,55 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { 
-  Activity, ShoppingBag, Wallet, CheckSquare, 
-  RefreshCw, ChevronRight, AlertCircle, ShoppingCart 
+import {
+  Activity,
+  ShoppingBag,
+  Wallet,
+  Minus,
+  Plus,
+  RefreshCw,
+  ChevronRight,
+  AlertCircle,
+  ShoppingCart,
+  Trash2,
 } from "lucide-react";
-import { APP_CONFIG, CATEGORIES, STAPLES_COST, STAPLES_CALORIES, STAPLES_PROTEIN } from "./data";
+import {
+  APP_CONFIG,
+  CATEGORIES,
+  STAPLES_COST,
+  STAPLES_CALORIES,
+  STAPLES_PROTEIN,
+} from "./data";
 import { Logo } from "./Logo";
 
 const App = () => {
-  // --- STATE ---
-  const [selections, setSelections] = useState({});
+  // --- STATE: Now stores { itemId: quantity } ---
+  const [cart, setCart] = useState({});
   const [includeStaples, setIncludeStaples] = useState(false);
-  const [viewMode, setViewMode] = useState("plan"); // 'plan' | 'list'
+  const [viewMode, setViewMode] = useState("plan");
 
   // --- PERSISTENCE ---
   useEffect(() => {
-    const saved = localStorage.getItem("nourish_state");
-    if (saved) setSelections(JSON.parse(saved));
+    const saved = localStorage.getItem("nourish_cart_v2");
+    if (saved) setCart(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("nourish_state", JSON.stringify(selections));
-  }, [selections]);
+    localStorage.setItem("nourish_cart_v2", JSON.stringify(cart));
+  }, [cart]);
 
-  const handleSelect = (categoryId, item) => {
-    setSelections((prev) => ({ ...prev, [categoryId]: item }));
+  // --- LOGIC: Quantity Handler ---
+  const updateQuantity = (itemId, delta) => {
+    setCart((prev) => {
+      const current = prev[itemId] || 0;
+      const next = Math.max(0, current + delta);
+      const newCart = { ...prev, [itemId]: next };
+      if (next === 0) delete newCart[itemId]; // Clean up
+      return newCart;
+    });
   };
 
   const resetPlan = () => {
-    if(confirm("Start new week? This clears current selection.")) {
-      setSelections({});
+    if (confirm("Clear your cart?")) {
+      setCart({});
       setViewMode("plan");
     }
   };
@@ -36,54 +57,63 @@ const App = () => {
   // --- CALCULATIONS ---
   const stats = useMemo(() => {
     let tripCost = 0;
-    let totalCals = 0;
-    let totalProtein = 0;
+    let tripCals = 0;
+    let tripProtein = 0;
+    let totalItems = 0;
 
-    Object.values(selections).forEach((item) => {
-      tripCost += item.price;
-      totalCals += item.calories;
-      totalProtein += item.protein;
+    // Iterate through all categories to find selected items
+    CATEGORIES.forEach((cat) => {
+      cat.items.forEach((item) => {
+        const qty = cart[item.id] || 0;
+        if (qty > 0) {
+          tripCost += item.price * qty;
+          tripCals += item.calories * qty;
+          tripProtein += item.protein * qty;
+          totalItems += qty;
+        }
+      });
     });
 
-    // Cost only added if toggle is ON
+    // Add Staples
     const finalCost = includeStaples ? tripCost + STAPLES_COST : tripCost;
 
-    // Calories always added (you eat staples regardless of buying them)
-    const dailyCals = (totalCals / APP_CONFIG.tripDurationDays) + STAPLES_CALORIES;
-    const dailyProtein = (totalProtein / APP_CONFIG.tripDurationDays) + STAPLES_PROTEIN;
+    // Daily Averages
+    // Note: Staples calories are added to the daily average automatically
+    const dailyCals = tripCals / APP_CONFIG.tripDurationDays + STAPLES_CALORIES;
+    const dailyProtein =
+      tripProtein / APP_CONFIG.tripDurationDays + STAPLES_PROTEIN;
 
-    return { finalCost, dailyCals, dailyProtein };
-  }, [selections, includeStaples]);
-
-  const progress = Object.keys(selections).length;
-  const isComplete = progress === CATEGORIES.length;
+    return { finalCost, dailyCals, dailyProtein, totalItems };
+  }, [cart, includeStaples]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-rose-500/30">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-6 pb-24 sm:max-w-xl">
-        
+      <div className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-6 pb-28 sm:max-w-xl">
         {/* --- HEADER --- */}
-        <header className="flex items-center justify-between mb-8">
+        <header className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-slate-900 rounded-xl border border-slate-800 shadow-xl">
               <Logo />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">NOURISH</h1>
-              <p className="text-xs text-slate-400 font-medium tracking-wide">Nour Gaser's Kitchen</p>
+              <h1 className="text-xl font-bold tracking-tight text-white">
+                NOURISH
+              </h1>
+              <p className="text-xs text-slate-400 font-medium tracking-wide">
+                GA SER'S KITCHEN
+              </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={resetPlan}
-            className="p-2 text-slate-500 hover:text-rose-400 transition-colors"
-            title="Reset Plan"
+            className="p-2 text-slate-500 hover:text-rose-400"
           >
             <RefreshCw size={18} />
           </button>
         </header>
 
         {/* --- STATS DASHBOARD --- */}
-        <section className="grid grid-cols-3 gap-3 mb-8">
+        <section className="grid grid-cols-3 gap-3 mb-6">
           <StatCard
             icon={<Wallet size={16} />}
             label="Trip Cost"
@@ -109,61 +139,104 @@ const App = () => {
         </section>
 
         {/* --- STAPLES TOGGLE --- */}
-        <div className="flex items-center justify-between bg-slate-900/50 p-3 rounded-xl border border-slate-800/50 mb-6">
+        <div className="flex items-center justify-between bg-slate-900/40 p-3 rounded-xl border border-slate-800/50 mb-6">
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${includeStaples ? 'bg-amber-400' : 'bg-slate-600'}`} />
-            <span className="text-sm text-slate-300">Refill Staples? <span className="text-xs text-slate-500">(Rice/Oil/Honey)</span></span>
+            <div
+              className={`w-2 h-2 rounded-full ${includeStaples ? "bg-amber-400" : "bg-slate-700"}`}
+            />
+            <span className="text-sm text-slate-300">
+              Refill Staples?{" "}
+              <span className="text-xs text-slate-500">(Rice/Oil/Honey)</span>
+            </span>
           </div>
-          <button 
+          <button
             onClick={() => setIncludeStaples(!includeStaples)}
-            className={`w-11 h-6 flex items-center rounded-full px-1 transition-colors ${includeStaples ? 'bg-amber-500' : 'bg-slate-700'}`}
+            className={`w-10 h-6 flex items-center rounded-full px-1 transition-colors ${includeStaples ? "bg-amber-500" : "bg-slate-700"}`}
           >
-            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${includeStaples ? 'translate-x-5' : 'translate-x-0'}`} />
+            <div
+              className={`w-4 h-4 bg-white rounded-full transition-transform ${includeStaples ? "translate-x-4" : "translate-x-0"}`}
+            />
           </button>
         </div>
 
-        {/* --- VIEW SWITCHER --- */}
+        {/* --- MAIN CONTENT --- */}
         {viewMode === "plan" ? (
-          /* --- PLAN MODE --- */
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 animate-in fade-in">
             {CATEGORIES.map((cat) => (
               <div key={cat.id} className="space-y-3">
                 <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">{cat.title}</h2>
-                  {selections[cat.id] && <CheckSquare size={14} className="text-emerald-500" />}
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                    {cat.title}
+                  </h2>
+                  <span className="text-[10px] text-slate-600 font-mono border border-slate-800 px-2 py-0.5 rounded">
+                    {cat.subtitle}
+                  </span>
                 </div>
+
                 <div className="grid grid-cols-1 gap-3">
                   {cat.items.map((item) => {
-                    const isSelected = selections[cat.id]?.id === item.id;
+                    const qty = cart[item.id] || 0;
                     return (
-                      <button
+                      <div
                         key={item.id}
-                        onClick={() => handleSelect(cat.id, item)}
-                        className={`relative group flex items-start justify-between p-4 rounded-2xl border transition-all duration-300 text-left
-                          ${isSelected 
-                            ? "bg-rose-500/10 border-rose-500/50 shadow-[0_0_20px_rgba(244,63,94,0.1)]" 
-                            : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                        className={`group flex items-center justify-between p-3 rounded-2xl border transition-all duration-200
+                          ${
+                            qty > 0
+                              ? "bg-slate-900 border-rose-500/30 shadow-[0_4px_20px_-4px_rgba(244,63,94,0.1)]"
+                              : "bg-slate-950/50 border-slate-800/60"
                           }`}
                       >
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`font-semibold ${isSelected ? "text-rose-100" : "text-slate-200"}`}>
+                        {/* Item Info */}
+                        <div className="flex-1 min-w-0 pr-4">
+                          <div className="flex items-center justify-between mb-1">
+                            <div
+                              className={`font-semibold text-sm ${qty > 0 ? "text-slate-100" : "text-slate-400"}`}
+                            >
                               {item.name}
-                            </span>
-                            <span className="text-xs text-slate-500 font-medium px-2 py-0.5 bg-slate-800 rounded-full">
+                            </div>
+                            <div className="text-xs font-mono text-slate-500">
+                              {item.price} EGP
+                            </div>
+                          </div>
+                          <div className="flex gap-2 text-[10px] text-slate-500 uppercase tracking-wider">
+                            <span className="bg-slate-900 px-1.5 rounded">
                               {item.qty}
                             </span>
-                          </div>
-                          <div className="flex gap-2 text-[10px] text-slate-400 uppercase tracking-wider">
-                            {item.tags.map(t => <span key={t}>{t}</span>)}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`font-mono font-medium ${isSelected ? "text-rose-300" : "text-slate-400"}`}>
-                            {item.price} <span className="text-[10px]">EGP</span>
+                            {item.tags.map((t) => (
+                              <span key={t}>{t}</span>
+                            ))}
                           </div>
                         </div>
-                      </button>
+
+                        {/* Counter Controls */}
+                        <div
+                          className={`flex items-center gap-3 rounded-xl p-1 ${qty > 0 ? "bg-slate-800" : "bg-slate-900 border border-slate-800"}`}
+                        >
+                          <button
+                            onClick={() => updateQuantity(item.id, -1)}
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${qty > 0 ? "hover:bg-slate-700 text-slate-300" : "text-slate-700 pointer-events-none"}`}
+                          >
+                            {qty === 1 ? (
+                              <Trash2 size={14} />
+                            ) : (
+                              <Minus size={14} />
+                            )}
+                          </button>
+
+                          <div
+                            className={`w-4 text-center font-bold text-sm ${qty > 0 ? "text-rose-400" : "text-slate-600"}`}
+                          >
+                            {qty}
+                          </div>
+
+                          <button
+                            onClick={() => updateQuantity(item.id, 1)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -172,67 +245,82 @@ const App = () => {
           </div>
         ) : (
           /* --- LIST MODE --- */
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-             <div className="bg-white/5 p-6 rounded-2xl border border-white/10 text-center">
-                <h3 className="text-xl font-bold text-white mb-1">Shopping List</h3>
-                <p className="text-slate-400 text-sm">{stats.finalCost} EGP Est.</p>
-             </div>
+          <div className="space-y-4 animate-in slide-in-from-right duration-300">
+            <div className="bg-slate-900/50 p-6 rounded-2xl border border-rose-500/20 text-center shadow-lg">
+              <h3 className="text-xl font-bold text-white mb-1">
+                Shopping List
+              </h3>
+              <p className="text-rose-300 font-mono text-lg">
+                {stats.finalCost} EGP{" "}
+                <span className="text-slate-500 text-sm">approx</span>
+              </p>
+            </div>
 
-             <div className="bg-slate-900 rounded-2xl border border-slate-800 divide-y divide-slate-800/50">
-               {includeStaples && (
-                 <div className="p-4 flex items-center gap-3">
-                    <div className="w-5 h-5 rounded border border-amber-500/50 bg-amber-500/10 flex items-center justify-center text-amber-500">
-                      <AlertCircle size={12} />
+            <div className="bg-slate-900 rounded-2xl border border-slate-800 divide-y divide-slate-800/50">
+              {includeStaples && (
+                <div className="p-4 flex items-center gap-3 bg-amber-500/5">
+                  <AlertCircle size={16} className="text-amber-500" />
+                  <div>
+                    <div className="text-slate-200 font-medium text-sm">
+                      Refill Staples
                     </div>
-                    <div>
-                      <div className="text-slate-200 font-medium">Staples Refill</div>
-                      <div className="text-xs text-slate-500">Rice, Oil, Honey, Spices</div>
+                    <div className="text-xs text-slate-500">
+                      Rice, Oil, Honey, Spices
                     </div>
-                 </div>
-               )}
-               
-               {Object.values(selections).map((item) => (
-                 <div key={item.id} className="p-4 flex items-start gap-4">
-                    <div className="w-5 h-5 mt-1 rounded border border-slate-700 bg-slate-800" />
-                    <div>
-                      <div className="text-slate-200 font-medium line-through-active">{item.shoppingItem}</div>
-                      <div className="text-xs text-emerald-400/80 mt-1">Prep: {item.prep}</div>
-                    </div>
-                 </div>
-               ))}
-               
-               {!isComplete && (
-                  <div className="p-4 text-center text-sm text-slate-500 italic">
-                    Finish selecting items to see full list...
                   </div>
-               )}
-             </div>
+                </div>
+              )}
+
+              {CATEGORIES.flatMap((c) => c.items)
+                .filter((i) => cart[i.id] > 0)
+                .map((item) => (
+                  <div key={item.id} className="p-4 flex items-start gap-4">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-500/10 text-xs font-bold text-rose-500 border border-rose-500/20">
+                      {cart[item.id]}x
+                    </div>
+                    <div>
+                      <div className="text-slate-200 font-medium text-sm">
+                        {item.shoppingItem}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {item.prep}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+              {stats.totalItems === 0 && (
+                <div className="p-8 text-center text-slate-600 italic">
+                  Your list is empty. Go back and pick some protein!
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* --- FLOATING ACTION BAR --- */}
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md">
-          <button 
-            disabled={!isComplete}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-50">
+          <button
+            disabled={stats.totalItems === 0}
             onClick={() => setViewMode(viewMode === "plan" ? "list" : "plan")}
-            className={`w-full h-14 rounded-2xl font-bold text-lg shadow-2xl flex items-center justify-center gap-2 transition-all
-              ${!isComplete 
-                ? "bg-slate-800 text-slate-500 cursor-not-allowed" 
-                : "bg-rose-600 text-white hover:bg-rose-500 hover:shadow-rose-900/20 hover:scale-[1.02]"
+            className={`w-full h-14 rounded-2xl font-bold text-base shadow-2xl flex items-center justify-center gap-2 transition-all transform active:scale-95
+              ${
+                stats.totalItems === 0
+                  ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  : "bg-rose-600 text-white hover:bg-rose-500 shadow-rose-900/40"
               }`}
           >
             {viewMode === "plan" ? (
               <>
-                <ShoppingCart size={20} /> Checkout ({stats.finalCost} EGP)
+                <ShoppingCart size={18} /> Checkout ({stats.totalItems} items)
               </>
             ) : (
               <>
-                <ChevronRight size={20} /> Back to Plan
+                <ChevronRight size={18} /> Edit Plan
               </>
             )}
           </button>
         </div>
-
       </div>
     </div>
   );
@@ -240,16 +328,29 @@ const App = () => {
 
 // --- SUBCOMPONENTS ---
 const StatCard = ({ icon, label, value, limit, unit, isCurrency }) => {
-  const isDanger = isCurrency ? value > limit : value < limit;
-  const colorClass = isDanger ? "text-rose-400" : "text-emerald-400";
+  // Logic:
+  // If Currency: Red is bad (over budget)
+  // If Calories/Protein: Red is bad (under target), Green is good (over/at target)
+
+  let colorClass = "text-slate-400";
+
+  if (isCurrency) {
+    colorClass = value > limit ? "text-rose-400" : "text-emerald-400";
+  } else {
+    // For nutrition, being slightly under is Amber, severely under is Red, Good is Emerald
+    const ratio = value / limit;
+    if (ratio >= 0.9) colorClass = "text-emerald-400";
+    else if (ratio >= 0.7) colorClass = "text-amber-400";
+    else colorClass = "text-rose-400";
+  }
 
   return (
-    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80 flex flex-col items-center justify-center text-center">
-      <div className="text-slate-500 mb-1">{icon}</div>
+    <div className="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/60 flex flex-col items-center justify-center text-center shadow-sm">
+      <div className="text-slate-500 mb-1.5 opacity-80">{icon}</div>
       <div className={`text-lg font-bold leading-none mb-1 ${colorClass}`}>
         {value}
       </div>
-      <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
+      <div className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">
         {label}
       </div>
     </div>
