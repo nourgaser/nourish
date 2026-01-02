@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { 
-  Activity, ShoppingBag, Wallet, Minus, Plus, 
-  RefreshCw, ChevronRight, AlertCircle, ShoppingCart, Trash2, CheckCircle2, XCircle, Settings as SettingsIcon
+import {
+  Activity, ShoppingBag, Wallet, Minus, Plus,
+  RefreshCw, ChevronRight, AlertCircle, ShoppingCart, Trash2, CheckCircle2, XCircle,
+  Settings as SettingsIcon, Sun, Moon
 } from "lucide-react";
 import { DEFAULT_CATEGORIES, DEFAULT_CONFIG, STAPLES } from "./data";
 import { Logo } from "./Logo";
@@ -40,6 +41,15 @@ const App = () => {
   const [staplesConfig, setStaplesConfig] = useState(STAPLES);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [cart, setCart] = useState({});
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "dark";
+    const saved = localStorage.getItem("nourish_theme");
+    const initial = (saved === "light" || saved === "dark")
+      ? saved
+      : (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.dataset.theme = initial;
+    return initial;
+  });
   
   // --- UI STATE ---
   const [includeStaples, setIncludeStaples] = useState(false);
@@ -93,6 +103,11 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem("nourish_categories_v1", JSON.stringify(categories));
   }, [categories]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("nourish_theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     const validIds = new Set(categories.flatMap(cat => (cat.items || []).map(item => item.id)));
@@ -163,6 +178,7 @@ const App = () => {
     setCart({});
     setIncludeStaples(defaultProfile.autoIncludeStaples ?? false);
     setViewMode("plan");
+    setTheme("dark");
     localStorage.removeItem("nourish_profile");
     localStorage.removeItem("nourish_prices");
     localStorage.removeItem("nourish_cart_v3");
@@ -298,9 +314,21 @@ const App = () => {
 
   const advice = getSmartAdvice();
   const canCheckout = advice.type !== 'error';
+  const bannerTone = (tone) => {
+    if (tone === 'error') return theme === "dark" ? "bg-rose-500/10 border-rose-500/50 text-rose-200" : "bg-rose-50 border-rose-200 text-rose-800";
+    if (tone === 'warn') return theme === "dark" ? "bg-amber-500/10 border-amber-500/50 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-800";
+    return theme === "dark" ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-200" : "bg-emerald-50 border-emerald-200 text-emerald-800";
+  };
+
+  const surfaceCard = theme === "dark" ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200";
+  const surfaceMuted = theme === "dark" ? "bg-slate-900/40 border-slate-800/50" : "bg-slate-100 border-slate-200";
+  const chipMuted = theme === "dark" ? "bg-slate-900 text-slate-400" : "bg-slate-100 text-slate-600";
+  const textSubtle = theme === "dark" ? "text-slate-400" : "text-slate-600";
+  const textMuted = "text-slate-500";
+  const panelStrong = theme === "dark" ? "bg-slate-950/50 border-slate-800/60" : "bg-slate-50 border-slate-200";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-rose-500/30">
+    <div className={`min-h-screen font-sans selection:bg-rose-500/25 ${theme === "dark" ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"}`}>
       
       {showSettings && (
         <Settings 
@@ -313,6 +341,8 @@ const App = () => {
           onImport={applyImportedSettings}
           onReset={resetAll}
           onClose={() => setShowSettings(false)}
+          theme={theme}
+          onThemeChange={setTheme}
         />
       )}
 
@@ -321,29 +351,33 @@ const App = () => {
         {/* HEADER */}
         <header className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-slate-900 rounded-xl border border-slate-800 shadow-xl">
+            <div className={`p-2 rounded-xl border shadow-xl ${surfaceCard}`}>
               <Logo />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">NOURISH</h1>
-              <p className="text-xs text-slate-400 font-medium tracking-wide uppercase">{userProfile.name}'S KITCHEN</p>
+              <h1 className={`text-xl font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>NOURISH</h1>
+              <p className={`text-xs font-medium tracking-wide uppercase ${textSubtle}`}>{userProfile.name}'S KITCHEN</p>
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setShowSettings(true)} className="p-2 text-slate-500 hover:text-white transition-colors">
+            <button onClick={() => setShowSettings(true)} className={`p-2 transition-colors ${theme === "dark" ? "text-slate-500 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}>
               <SettingsIcon size={20} />
             </button>
-            <button onClick={resetPlan} className="p-2 text-slate-500 hover:text-rose-400 transition-colors">
+            <button onClick={resetPlan} className={`p-2 transition-colors ${theme === "dark" ? "text-slate-500 hover:text-rose-400" : "text-slate-500 hover:text-rose-500"}`}>
               <RefreshCw size={20} />
+            </button>
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className={`p-2 rounded-lg border transition-colors ${theme === "dark" ? "text-amber-300 border-slate-800 hover:bg-slate-900" : "text-amber-600 border-slate-200 hover:bg-slate-100"}`}
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
         </header>
 
         {/* SMART ADVISOR BANNER */}
-        <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 transition-colors duration-300
-          ${advice.type === 'error' ? 'bg-rose-500/10 border-rose-500/50 text-rose-200' : 
-            advice.type === 'warn' ? 'bg-amber-500/10 border-amber-500/50 text-amber-200' : 
-            'bg-emerald-500/10 border-emerald-500/50 text-emerald-200'}`}>
+        <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 transition-colors duration-300 ${bannerTone(advice.type)}`}>
            {advice.type === 'error' ? <XCircle className="shrink-0 mt-0.5" size={18} /> : 
             advice.type === 'warn' ? <AlertCircle className="shrink-0 mt-0.5" size={18} /> : 
             <CheckCircle2 className="shrink-0 mt-0.5" size={18} />}
@@ -352,18 +386,18 @@ const App = () => {
 
         {/* STATS */}
         <section className="grid grid-cols-3 gap-3 mb-6">
-          <StatCard icon={<Wallet size={16} />} label="Cost" value={stats.finalCost} limit={userProfile.budgetLimit} unit="EGP" isCurrency />
-          <StatCard icon={<Activity size={16} />} label="Cals" value={Math.round(stats.dailyCals)} limit={userProfile.targetDailyCalories} unit="" />
-          <StatCard icon={<ShoppingBag size={16} />} label="Prot" value={Math.round(stats.dailyProtein)} limit={userProfile.targetDailyProtein} unit="g" />
+          <StatCard theme={theme} icon={<Wallet size={16} />} label="Cost" value={stats.finalCost} limit={userProfile.budgetLimit} unit="EGP" isCurrency />
+          <StatCard theme={theme} icon={<Activity size={16} />} label="Cals" value={Math.round(stats.dailyCals)} limit={userProfile.targetDailyCalories} unit="" />
+          <StatCard theme={theme} icon={<ShoppingBag size={16} />} label="Prot" value={Math.round(stats.dailyProtein)} limit={userProfile.targetDailyProtein} unit="g" />
         </section>
 
         {/* STAPLES TOGGLE */}
-        <div className="flex items-center justify-between bg-slate-900/40 p-3 rounded-xl border border-slate-800/50 mb-6">
+        <div className={`flex items-center justify-between p-3 rounded-xl mb-6 ${surfaceMuted}`}>
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${includeStaples ? 'bg-amber-400' : 'bg-slate-700'}`} />
-            <span className="text-sm text-slate-300">Refill Staples? <span className="text-xs text-slate-500">(Rice/Oil/Honey)</span></span>
+            <div className={`w-2 h-2 rounded-full ${includeStaples ? 'bg-amber-500' : 'bg-slate-400'}`} />
+            <span className={`text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>Refill Staples? <span className={`text-xs ${textMuted}`}>(Rice/Oil/Honey)</span></span>
           </div>
-          <button onClick={() => setIncludeStaples(!includeStaples)} className={`w-10 h-6 flex items-center rounded-full px-1 transition-colors ${includeStaples ? 'bg-amber-500' : 'bg-slate-700'}`}>
+          <button onClick={() => setIncludeStaples(!includeStaples)} className={`w-10 h-6 flex items-center rounded-full px-1 transition-colors ${includeStaples ? 'bg-amber-500' : theme === "dark" ? 'bg-slate-700' : 'bg-slate-300'}`}>
             <div className={`w-4 h-4 bg-white rounded-full transition-transform ${includeStaples ? 'translate-x-4' : 'translate-x-0'}`} />
           </button>
         </div>
@@ -379,12 +413,12 @@ const App = () => {
                 <div key={cat.id} className="space-y-3">
                   <div className="flex items-center justify-between px-1">
                     <div>
-                      <h2 className={`text-xs font-bold uppercase tracking-widest ${isSatisfied ? "text-emerald-400" : "text-slate-500"}`}>
+                      <h2 className={`text-xs font-bold uppercase tracking-widest ${isSatisfied ? "text-emerald-500" : textSubtle}`}>
                         {cat.title}
                       </h2>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{cat.instruction}</p>
+                      <p className={`text-[10px] mt-0.5 ${textMuted}`}>{cat.instruction}</p>
                     </div>
-                    <div className={`px-2 py-1 rounded text-[10px] font-mono border ${isSatisfied ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
+                    <div className={`px-2 py-1 rounded text-[10px] font-mono border ${isSatisfied ? (theme === "dark" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-600") : (theme === "dark" ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-500")}`}>
                       {currentCount} / {cat.minSelection}
                     </div>
                   </div>
@@ -398,18 +432,18 @@ const App = () => {
                           <div key={item.id} className="flex items-center gap-3">
                             <div 
                               onClick={(e) => handleCardTap(e, item.id)}
-                              className={`flex-1 p-3 rounded-2xl border transition-all duration-200 cursor-pointer ripple-card ${qty > 0 ? "bg-slate-900 border-rose-500/30 shadow-sm" : "bg-slate-950/50 border-slate-800/60"}`}
+                              className={`flex-1 p-3 rounded-2xl border transition-all duration-200 cursor-pointer ripple-card ${qty > 0 ? (theme === "dark" ? "bg-slate-900 border-rose-500/30 shadow-sm" : "bg-rose-50 border-rose-200 shadow-sm") : panelStrong}`}
                             >
                               <div className="flex items-center justify-between mb-1">
-                                <div className={`font-semibold text-sm ${qty > 0 ? "text-slate-100" : "text-slate-400"}`}>{item.name}</div>
-                                <div className="text-xs font-mono text-slate-500">{price}</div>
+                                <div className={`font-semibold text-sm ${qty > 0 ? (theme === "dark" ? "text-slate-100" : "text-slate-900") : textSubtle}`}>{item.name}</div>
+                                <div className={`text-xs font-mono ${textMuted}`}>{price}</div>
                               </div>
-                              <div className="flex gap-2 text-[10px] text-slate-500 uppercase">
-                                <span className="bg-slate-900 px-1.5 rounded text-slate-400">{item.qty}</span>
+                              <div className={`flex gap-2 text-[10px] uppercase ${textMuted}`}>
+                                <span className={`px-1.5 rounded ${chipMuted}`}>{item.qty}</span>
                               </div>
                             </div>
-                            <div className={`flex items-center gap-2 rounded-xl p-1 ${qty > 0 ? 'bg-slate-800' : 'bg-slate-900 border border-slate-800'}`}>
-                              <button onClick={() => updateQuantity(item.id, -1)} className={`w-8 h-8 flex items-center justify-center rounded-lg ${qty > 0 ? 'hover:bg-slate-700 text-slate-300' : 'text-slate-700 pointer-events-none'}`}>
+                            <div className={`flex items-center gap-2 rounded-xl p-1 ${qty > 0 ? (theme === "dark" ? 'bg-slate-800' : 'bg-slate-100 border border-slate-200') : (theme === "dark" ? 'bg-slate-900 border border-slate-800' : 'bg-slate-100 border border-slate-200')}`}>
+                              <button onClick={() => updateQuantity(item.id, -1)} className={`w-8 h-8 flex items-center justify-center rounded-lg ${qty > 0 ? (theme === "dark" ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-200 text-slate-700') : 'text-slate-400 pointer-events-none'}`}>
                                 {qty === 1 ? <Trash2 size={14} /> : <Minus size={14} />}
                               </button>
                               <input
@@ -418,9 +452,9 @@ const App = () => {
                                 min="0"
                                 value={qty}
                                 onChange={(e) => setQuantity(item.id, parseFloat(e.target.value))}
-                                className={`w-16 text-center text-sm font-semibold rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:border-rose-500 focus:outline-none py-1 ${qty > 0 ? 'border-rose-500/50' : ''}`}
+                                className={`w-16 text-center text-sm font-semibold rounded-lg border focus:border-rose-500 focus:outline-none py-1 ${theme === "dark" ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'} ${qty > 0 ? 'border-rose-500/50' : ''}`}
                               />
-                              <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"><Plus size={14} /></button>
+                              <button onClick={() => updateQuantity(item.id, 1)} className={`w-8 h-8 flex items-center justify-center rounded-lg ${theme === "dark" ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-900 text-slate-100 hover:bg-slate-800'}`}><Plus size={14} /></button>
                             </div>
                           </div>
                         );
@@ -433,17 +467,17 @@ const App = () => {
         ) : (
           /* LIST MODE */
           <div className="space-y-4 animate-in slide-in-from-right duration-300">
-             <div className="bg-slate-900/50 p-6 rounded-2xl border border-rose-500/20 text-center shadow-lg">
-                <h3 className="text-xl font-bold text-white mb-1">Shopping List</h3>
-                <p className="text-rose-300 font-mono text-lg">{stats.finalCost} EGP <span className="text-slate-500 text-sm">approx</span></p>
+             <div className={`${theme === "dark" ? "bg-slate-900/50 border-rose-500/20" : "bg-rose-50 border-rose-200"} p-6 rounded-2xl border text-center shadow-lg`}>
+                <h3 className={`text-xl font-bold mb-1 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Shopping List</h3>
+                <p className={`font-mono text-lg ${theme === "dark" ? "text-rose-300" : "text-rose-600"}`}>{stats.finalCost} EGP <span className={`${textMuted} text-sm`}>approx</span></p>
              </div>
-             <div className="bg-slate-900 rounded-2xl border border-slate-800 divide-y divide-slate-800/50">
+             <div className={`${theme === "dark" ? "bg-slate-900 border-slate-800 divide-slate-800/50" : "bg-white border-slate-200 divide-slate-200/70"} rounded-2xl border divide-y`}>
                {includeStaples && (
-                 <div className="p-4 flex items-center gap-3 bg-amber-500/5">
-                    <AlertCircle size={16} className="text-amber-500" />
+                 <div className={`${theme === "dark" ? "bg-amber-500/5" : "bg-amber-50"} p-4 flex items-center gap-3`}>
+                    <AlertCircle size={16} className={theme === "dark" ? "text-amber-500" : "text-amber-600"} />
                     <div>
-                      <div className="text-slate-200 font-medium text-sm">Refill Staples</div>
-                      <div className="text-xs text-slate-500">Rice, Oil, Honey, Spices ({staplesConfig.cost} EGP)</div>
+                      <div className={`font-medium text-sm ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>Refill Staples</div>
+                      <div className={`text-xs ${textMuted}`}>Rice, Oil, Honey, Spices ({staplesConfig.cost} EGP)</div>
                     </div>
                  </div>
                )}
@@ -451,8 +485,8 @@ const App = () => {
                  <div key={item.id} className="p-4 flex items-start gap-4">
                     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-500/10 text-xs font-bold text-rose-500 border border-rose-500/20">{cart[item.id]}x</div>
                     <div>
-                      <div className="text-slate-200 font-medium text-sm">{item.shoppingItem}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{item.prep}</div>
+                      <div className={`font-medium text-sm ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>{item.shoppingItem}</div>
+                      <div className={`text-xs mt-0.5 ${textMuted}`}>{item.prep}</div>
                     </div>
                  </div>
                ))}
@@ -466,7 +500,7 @@ const App = () => {
             onClick={() => setViewMode(viewMode === "plan" ? "list" : "plan")}
             className={`w-full h-14 rounded-2xl font-bold text-base shadow-2xl flex items-center justify-center gap-2 transition-all transform active:scale-95
               ${!canCheckout 
-                ? "bg-slate-800 text-slate-500 opacity-80" 
+                ? (theme === "dark" ? "bg-slate-800 text-slate-500 opacity-80" : "bg-slate-200 text-slate-500 opacity-80")
                 : "bg-rose-600 text-white hover:bg-rose-500 shadow-rose-900/40"
               }`}
           >
@@ -488,7 +522,7 @@ const App = () => {
 };
 
 // Sub-components kept same as previous (StatCard, Logo, etc.)
-const StatCard = ({ icon, label, value, limit, unit, isCurrency }) => {
+const StatCard = ({ icon, label, value, limit, unit, isCurrency, theme = "dark" }) => {
   let colorClass = "text-slate-400";
   if (isCurrency) {
     colorClass = value > limit ? "text-rose-400" : "text-emerald-400";
@@ -499,7 +533,7 @@ const StatCard = ({ icon, label, value, limit, unit, isCurrency }) => {
     else colorClass = "text-rose-400";
   }
   return (
-    <div className="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/60 flex flex-col items-center justify-center text-center shadow-sm">
+    <div className={`p-3 rounded-2xl border flex flex-col items-center justify-center text-center shadow-sm ${theme === "dark" ? "bg-slate-900/60 border-slate-800/60" : "bg-white border-slate-200"}`}>
       <div className="text-slate-500 mb-1.5 opacity-80">{icon}</div>
       <div className={`text-lg font-bold leading-none mb-1 ${colorClass}`}>{value}</div>
       <div className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">{label}</div>
