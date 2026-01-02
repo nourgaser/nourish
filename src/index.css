@@ -17,3 +17,29 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Lightweight ripple effect for tappable cards */
+.ripple-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-card::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.35) 0%, rgba(244, 63, 94, 0.05) 55%, transparent 70%);
+  border-radius: 9999px;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+  left: var(--ripple-x, 50%);
+  top: var(--ripple-y, 50%);
+  transition: transform 450ms ease, opacity 650ms ease;
+}
+
+.ripple-active::after {
+  transform: translate(-50%, -50%) scale(14);
+  opacity: 1;
+}

@@ -9,7 +9,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'trip' | 'prices'
 
   const handlePriceChange = (id, val) => {
-    setPrices(prev => ({ ...prev, [id]: parseInt(val) || 0 }));
+    setPrices(prev => ({ ...prev, [id]: parseFloat(val) || 0 }));
   };
 
   const save = () => {
@@ -88,7 +88,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
                     type="number"
                     className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-rose-500 outline-none"
                     value={profile.targetDailyCalories}
-                    onChange={e => setProfile({...profile, targetDailyCalories: parseInt(e.target.value) || 0})}
+                    onChange={e => setProfile({...profile, targetDailyCalories: parseFloat(e.target.value) || 0})}
                   />
                  </div>
                  <div>
@@ -97,7 +97,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
                     type="number"
                     className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-rose-500 outline-none"
                     value={profile.targetDailyProtein}
-                    onChange={e => setProfile({...profile, targetDailyProtein: parseInt(e.target.value) || 0})}
+                    onChange={e => setProfile({...profile, targetDailyProtein: parseFloat(e.target.value) || 0})}
                   />
                  </div>
                  <div>
@@ -123,7 +123,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
                     type="number"
                     className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 pl-12 text-white focus:border-rose-500 outline-none"
                     value={profile.budgetLimit}
-                    onChange={e => setProfile({...profile, budgetLimit: parseInt(e.target.value) || 0})}
+                    onChange={e => setProfile({...profile, budgetLimit: parseFloat(e.target.value) || 0})}
                   />
                 </div>
                </div>
@@ -158,7 +158,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
                     type="number"
                     className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-amber-500 outline-none"
                     value={staples.cost}
-                    onChange={e => setStaples({ ...staples, cost: parseInt(e.target.value) || 0 })}
+                    onChange={e => setStaples({ ...staples, cost: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -167,7 +167,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
                     type="number"
                     className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-amber-500 outline-none"
                     value={staples.calories}
-                    onChange={e => setStaples({ ...staples, calories: parseInt(e.target.value) || 0 })}
+                    onChange={e => setStaples({ ...staples, calories: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -176,7 +176,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
                     type="number"
                     className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-amber-500 outline-none"
                     value={staples.protein}
-                    onChange={e => setStaples({ ...staples, protein: parseInt(e.target.value) || 0 })}
+                    onChange={e => setStaples({ ...staples, protein: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
               </div>

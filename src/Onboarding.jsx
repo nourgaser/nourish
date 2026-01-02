@@ -73,7 +73,7 @@ export const Onboarding = ({ onComplete }) => {
                     type="number" 
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-white focus:border-rose-500 outline-none"
                     value={data.targetDailyCalories}
-                    onChange={e => setData({...data, targetDailyCalories: parseInt(e.target.value) || 0})}
+                    onChange={e => setData({...data, targetDailyCalories: parseFloat(e.target.value) || 0})}
                   />
                   <p className="text-[10px] text-slate-500 mt-1">Recommended for Bulking: 2700+</p>
                 </div>
@@ -86,7 +86,7 @@ export const Onboarding = ({ onComplete }) => {
                     type="number" 
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-white focus:border-rose-500 outline-none"
                     value={data.targetDailyProtein}
-                    onChange={e => setData({...data, targetDailyProtein: parseInt(e.target.value) || 0})}
+                    onChange={e => setData({...data, targetDailyProtein: parseFloat(e.target.value) || 0})}
                   />
                 </div>
               </div>
@@ -106,7 +106,7 @@ export const Onboarding = ({ onComplete }) => {
                   type="number" 
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-white focus:border-emerald-500 outline-none"
                   value={data.budgetLimit}
-                  onChange={e => setData({...data, budgetLimit: parseInt(e.target.value) || 0})}
+                  onChange={e => setData({...data, budgetLimit: parseFloat(e.target.value) || 0})}
                 />
                 <p className="text-[10px] text-slate-500 mt-1">Usually ~750 EGP for a 3-4 day trip.</p>
               </div>

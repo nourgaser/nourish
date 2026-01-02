@@ -95,6 +95,31 @@ const App = () => {
     });
   };
 
+  const setQuantity = (itemId, value) => {
+    setCart(prev => {
+      const next = Math.max(0, isNaN(value) ? 0 : value);
+      const newCart = { ...prev, [itemId]: next };
+      if (next === 0) delete newCart[itemId];
+      return newCart;
+    });
+  };
+
+  const handleCardTap = (event, itemId) => {
+    const el = event.currentTarget;
+    const point = event.touches?.[0] || event;
+    const rect = el.getBoundingClientRect();
+    const x = point.clientX - rect.left;
+    const y = point.clientY - rect.top;
+    el.style.setProperty("--ripple-x", `${x}px`);
+    el.style.setProperty("--ripple-y", `${y}px`);
+    el.classList.remove("ripple-active");
+    // Force reflow so ripple can restart
+    void el.offsetWidth;
+    requestAnimationFrame(() => el.classList.add("ripple-active"));
+    setTimeout(() => el.classList.remove("ripple-active"), 500);
+    updateQuantity(itemId, 1);
+  };
+
   const resetPlan = () => {
     if(confirm("Clear your cart?")) {
       setCart({});
@@ -280,26 +305,36 @@ const App = () => {
                       const qty = cart[item.id] || 0;
                       const price = getPrice(item.id, item.defaultPrice);
                       
-                      return (
-                        <div key={item.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all duration-200 ${qty > 0 ? "bg-slate-900 border-rose-500/30 shadow-sm" : "bg-slate-950/50 border-slate-800/60"}`}>
-                          <div className="flex-1 min-w-0 pr-4">
-                            <div className="flex items-center justify-between mb-1">
-                               <div className={`font-semibold text-sm ${qty > 0 ? "text-slate-100" : "text-slate-400"}`}>{item.name}</div>
-                               <div className="text-xs font-mono text-slate-500">{price}</div>
+                        return (
+                          <div key={item.id} className="flex items-center gap-3">
+                            <div 
+                              onClick={(e) => handleCardTap(e, item.id)}
+                              className={`flex-1 p-3 rounded-2xl border transition-all duration-200 cursor-pointer ripple-card ${qty > 0 ? "bg-slate-900 border-rose-500/30 shadow-sm" : "bg-slate-950/50 border-slate-800/60"}`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <div className={`font-semibold text-sm ${qty > 0 ? "text-slate-100" : "text-slate-400"}`}>{item.name}</div>
+                                <div className="text-xs font-mono text-slate-500">{price}</div>
+                              </div>
+                              <div className="flex gap-2 text-[10px] text-slate-500 uppercase">
+                                <span className="bg-slate-900 px-1.5 rounded text-slate-400">{item.qty}</span>
+                              </div>
                             </div>
-                            <div className="flex gap-2 text-[10px] text-slate-500 uppercase">
-                              <span className="bg-slate-900 px-1.5 rounded text-slate-400">{item.qty}</span>
+                            <div className={`flex items-center gap-2 rounded-xl p-1 ${qty > 0 ? 'bg-slate-800' : 'bg-slate-900 border border-slate-800'}`}>
+                              <button onClick={() => updateQuantity(item.id, -1)} className={`w-8 h-8 flex items-center justify-center rounded-lg ${qty > 0 ? 'hover:bg-slate-700 text-slate-300' : 'text-slate-700 pointer-events-none'}`}>
+                                {qty === 1 ? <Trash2 size={14} /> : <Minus size={14} />}
+                              </button>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={qty}
+                                onChange={(e) => setQuantity(item.id, parseFloat(e.target.value))}
+                                className={`w-16 text-center text-sm font-semibold rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:border-rose-500 focus:outline-none py-1 ${qty > 0 ? 'border-rose-500/50' : ''}`}
+                              />
+                              <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"><Plus size={14} /></button>
                             </div>
                           </div>
-                          <div className={`flex items-center gap-3 rounded-xl p-1 ${qty > 0 ? 'bg-slate-800' : 'bg-slate-900 border border-slate-800'}`}>
-                            <button onClick={() => updateQuantity(item.id, -1)} className={`w-8 h-8 flex items-center justify-center rounded-lg ${qty > 0 ? 'hover:bg-slate-700 text-slate-300' : 'text-slate-700 pointer-events-none'}`}>
-                              {qty === 1 ? <Trash2 size={14} /> : <Minus size={14} />}
-                            </button>
-                            <div className={`w-4 text-center font-bold text-sm ${qty > 0 ? "text-rose-400" : "text-slate-600"}`}>{qty}</div>
-                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"><Plus size={14} /></button>
-                          </div>
-                        </div>
-                      );
+                        );
                     })}
                   </div>
                 </div>
