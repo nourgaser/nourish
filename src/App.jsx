@@ -3,26 +3,33 @@ import {
   Activity, ShoppingBag, Wallet, Minus, Plus, 
   RefreshCw, ChevronRight, AlertCircle, ShoppingCart, Trash2, CheckCircle2, XCircle, Settings as SettingsIcon
 } from "lucide-react";
-import { CATEGORIES, DEFAULT_CONFIG, STAPLES } from "./data";
+import { DEFAULT_CATEGORIES, DEFAULT_CONFIG, STAPLES } from "./data";
 import { Logo } from "./Logo";
 import { Onboarding } from "./Onboarding";
 import { Settings } from "./Settings";
 
 function mergeProfileDefaults(profile) {
   const normalized = profile || {};
+  const {
+    name = "",
+    budgetLimit = DEFAULT_CONFIG.budgetLimit,
+    targetDailyCalories = DEFAULT_CONFIG.targetDailyCalories,
+    targetDailyProtein = DEFAULT_CONFIG.targetDailyProtein,
+    tripDurationDays = DEFAULT_CONFIG.tripDurationDays,
+    ibsMode = DEFAULT_CONFIG.ibsMode,
+    autoIncludeStaples = false,
+    ...rest
+  } = normalized;
+
   return {
-    name: "",
-    budgetLimit: DEFAULT_CONFIG.budgetLimit,
-    targetDailyCalories: DEFAULT_CONFIG.targetDailyCalories,
-    targetDailyProtein: DEFAULT_CONFIG.targetDailyProtein,
-    tripDurationDays: DEFAULT_CONFIG.tripDurationDays,
-    ibsMode: DEFAULT_CONFIG.ibsMode,
-    autoIncludeStaples: false,
-    ...normalized,
-    budgetLimit: Number(normalized.budgetLimit ?? DEFAULT_CONFIG.budgetLimit),
-    targetDailyCalories: Number(normalized.targetDailyCalories ?? DEFAULT_CONFIG.targetDailyCalories),
-    targetDailyProtein: Number(normalized.targetDailyProtein ?? DEFAULT_CONFIG.targetDailyProtein),
-    tripDurationDays: Number(normalized.tripDurationDays ?? DEFAULT_CONFIG.tripDurationDays),
+    name,
+    ibsMode,
+    autoIncludeStaples,
+    budgetLimit: Number(budgetLimit),
+    targetDailyCalories: Number(targetDailyCalories),
+    targetDailyProtein: Number(targetDailyProtein),
+    tripDurationDays: Number(tripDurationDays),
+    ...rest,
   };
 }
 
@@ -31,6 +38,7 @@ const App = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [priceOverrides, setPriceOverrides] = useState({});
   const [staplesConfig, setStaplesConfig] = useState(STAPLES);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [cart, setCart] = useState({});
   
   // --- UI STATE ---
@@ -45,11 +53,13 @@ const App = () => {
     const savedPrices = localStorage.getItem("nourish_prices");
     const savedCart = localStorage.getItem("nourish_cart_v3");
     const savedStaples = localStorage.getItem("nourish_staples_v1");
+    const savedCategories = localStorage.getItem("nourish_categories_v1");
 
     if (savedProfile) setUserProfile(mergeProfileDefaults(JSON.parse(savedProfile)));
     if (savedPrices) setPriceOverrides(JSON.parse(savedPrices));
     if (savedCart) setCart(JSON.parse(savedCart));
     if (savedStaples) setStaplesConfig(JSON.parse(savedStaples));
+    if (savedCategories) setCategories(JSON.parse(savedCategories));
   }, []);
 
   // Save on change
@@ -69,6 +79,28 @@ const App = () => {
     localStorage.setItem("nourish_staples_v1", JSON.stringify(staplesConfig));
   }, [staplesConfig]);
 
+  useEffect(() => {
+    localStorage.setItem("nourish_categories_v1", JSON.stringify(categories));
+  }, [categories]);
+
+  useEffect(() => {
+    const validIds = new Set(categories.flatMap(cat => (cat.items || []).map(item => item.id)));
+    setCart(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([id, qty]) => {
+        if (validIds.has(id)) next[id] = qty;
+      });
+      return next;
+    });
+    setPriceOverrides(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([id, price]) => {
+        if (validIds.has(id)) next[id] = price;
+      });
+      return next;
+    });
+  }, [categories]);
+
 
   // --- HANDLERS ---
   const handleOnboardingComplete = (data) => {
@@ -77,11 +109,19 @@ const App = () => {
     setIncludeStaples(normalized.autoIncludeStaples ?? false);
   };
 
-  const handleSettingsSave = (newProfile, newPrices, newStaples) => {
+  const handleSettingsSave = (newProfile, newPrices, newStaples, newCategories) => {
     const normalizedProfile = mergeProfileDefaults(newProfile);
+    const nextCategories = newCategories?.length ? newCategories : DEFAULT_CATEGORIES;
+    const validIds = new Set(nextCategories.flatMap(cat => (cat.items || []).map(item => item.id)));
+
+    const cleanedCart = Object.fromEntries(Object.entries(cart).filter(([id]) => validIds.has(id)));
+    const cleanedPrices = Object.fromEntries(Object.entries(newPrices || {}).filter(([id]) => validIds.has(id)));
+
     setUserProfile(normalizedProfile);
-    setPriceOverrides(newPrices);
+    setPriceOverrides(cleanedPrices);
     setStaplesConfig(newStaples);
+    setCategories(nextCategories);
+    setCart(cleanedCart);
     setIncludeStaples(normalizedProfile.autoIncludeStaples ?? false);
   };
 
@@ -148,9 +188,9 @@ const App = () => {
     let totalItems = 0;
     const categoryCounts = {};
 
-    CATEGORIES.forEach(c => categoryCounts[c.id] = 0);
+    categories.forEach(c => categoryCounts[c.id] = 0);
 
-    CATEGORIES.forEach(cat => {
+    categories.forEach(cat => {
       cat.items.forEach(item => {
         const qty = cart[item.id] || 0;
         if (qty > 0) {
@@ -171,7 +211,7 @@ const App = () => {
     const dailyProtein = (tripProtein / tripDuration) + staples.protein;
 
     return { finalCost, dailyCals, dailyProtein, totalItems, categoryCounts };
-  }, [cart, includeStaples, userProfile, priceOverrides, staplesConfig]);
+  }, [cart, includeStaples, userProfile, priceOverrides, staplesConfig, categories]);
 
 
   // --- EARLY RETURN: ONBOARDING ---
@@ -194,7 +234,7 @@ const App = () => {
     }
     
     // Category Mins
-    for (const cat of CATEGORIES) {
+    for (const cat of categories) {
       if (stats.categoryCounts[cat.id] < cat.minSelection) {
         return { type: 'warn', text: `Add ${cat.minSelection - stats.categoryCounts[cat.id]} more item(s) to ${cat.title}.` };
       }
@@ -222,6 +262,7 @@ const App = () => {
           currentProfile={userProfile} 
           currentPrices={priceOverrides} 
           currentStaples={staplesConfig}
+          currentCategories={categories}
           onSave={handleSettingsSave}
           onClose={() => setShowSettings(false)}
         />
@@ -282,7 +323,7 @@ const App = () => {
         {/* MAIN CONTENT AREA */}
         {viewMode === "plan" ? (
           <div className="flex flex-col gap-8 animate-in fade-in">
-            {CATEGORIES.map((cat) => {
+            {categories.map((cat) => {
               const currentCount = stats.categoryCounts[cat.id];
               const isSatisfied = currentCount >= cat.minSelection;
 
@@ -358,7 +399,7 @@ const App = () => {
                     </div>
                  </div>
                )}
-               {CATEGORIES.flatMap(c => c.items).filter(i => cart[i.id] > 0).map((item) => (
+               {categories.flatMap(c => c.items).filter(i => cart[i.id] > 0).map((item) => (
                  <div key={item.id} className="p-4 flex items-start gap-4">
                     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-500/10 text-xs font-bold text-rose-500 border border-rose-500/20">{cart[item.id]}x</div>
                     <div>

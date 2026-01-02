@@ -1,25 +1,131 @@
-import React, { useState } from 'react';
-import { X, Save, Clock, Flame, Leaf } from 'lucide-react';
-import { CATEGORIES, DEFAULT_CONFIG, STAPLES } from './data';
+import React, { useMemo, useState } from 'react';
+import { X, Save, Clock, Flame, Leaf, Plus, Trash2, Download, Upload, RotateCcw, Copy } from 'lucide-react';
+import { DEFAULT_CATEGORIES, DEFAULT_CONFIG, STAPLES } from './data';
 
-export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave, onClose }) => {
+export const Settings = ({ currentProfile, currentPrices, currentStaples, currentCategories, currentCart, onSave, onClose, onImport, onReset }) => {
   const [profile, setProfile] = useState(currentProfile);
   const [prices, setPrices] = useState(currentPrices);
   const [staples, setStaples] = useState(currentStaples || STAPLES);
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'trip' | 'prices'
+  const [categories, setCategories] = useState(currentCategories || DEFAULT_CATEGORIES);
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'trip' | 'prices' | 'modules' | 'backup'
+  const [importText, setImportText] = useState('');
+  const [importState, setImportState] = useState(null); // { type: 'error'|'success', message: string }
 
   const handlePriceChange = (id, val) => {
     setPrices(prev => ({ ...prev, [id]: parseFloat(val) || 0 }));
   };
 
+  const normalizeCategories = (cats) => {
+    return cats.map(cat => ({
+      ...cat,
+      minSelection: Number(cat.minSelection) || 0,
+      items: (cat.items || []).map(item => ({
+        ...item,
+        defaultPrice: Number(item.defaultPrice) || 0,
+        calories: Number(item.calories) || 0,
+        protein: Number(item.protein) || 0,
+      }))
+    }));
+  };
+
   const save = () => {
-    onSave(profile, prices, staples);
+    const normalizedCats = normalizeCategories(categories);
+    onSave(profile, prices, staples, normalizedCats);
     onClose();
   };
 
   const resetToDefaults = () => {
     setProfile({ ...DEFAULT_CONFIG, name: profile.name || '', autoIncludeStaples: false });
     setStaples(STAPLES);
+    setCategories(DEFAULT_CATEGORIES);
+  };
+
+  const exportJson = useMemo(() => {
+    return JSON.stringify({
+      version: 1,
+      profile,
+      prices,
+      staples,
+      categories,
+      cart: currentCart,
+    }, null, 2);
+  }, [profile, prices, staples, categories, currentCart]);
+
+  const copyExport = async () => {
+    try {
+      await navigator.clipboard.writeText(exportJson);
+      setImportState({ type: 'success', message: 'Copied to clipboard.' });
+    } catch (err) {
+      setImportState({ type: 'error', message: 'Copy failed. Select and copy manually.' });
+    }
+  };
+
+  const handleImport = () => {
+    setImportState(null);
+    try {
+      const parsed = JSON.parse(importText);
+      onImport(parsed);
+      setImportState({ type: 'success', message: 'Settings imported.' });
+      setActiveTab('profile');
+    } catch (err) {
+      setImportState({ type: 'error', message: 'Invalid JSON. Please check and try again.' });
+    }
+  };
+
+  const updateCategoryField = (catId, field, value) => {
+    setCategories(prev => prev.map(cat => cat.id === catId ? { ...cat, [field]: value } : cat));
+  };
+
+  const addCategory = () => {
+    const timestamp = Date.now();
+    setCategories(prev => ([
+      ...prev,
+      { id: `cat_${timestamp}`, title: 'New Module', instruction: 'Describe the goal for this bucket', minSelection: 1, items: [] }
+    ]));
+  };
+
+  const removeCategory = (catId) => {
+    setCategories(prev => prev.filter(cat => cat.id !== catId));
+  };
+
+  const addItem = (catId) => {
+    const ts = Date.now();
+    setCategories(prev => prev.map(cat => {
+      if (cat.id !== catId) return cat;
+      return {
+        ...cat,
+        items: [...(cat.items || []), {
+          id: `item_${ts}`,
+          name: 'New Item',
+          qty: '1 unit',
+          defaultPrice: 0,
+          calories: 0,
+          protein: 0,
+          shoppingItem: 'Describe how to buy',
+          prep: 'Prep notes'
+        }]
+      };
+    }));
+  };
+
+  const updateItemField = (catId, itemId, field, value) => {
+    setCategories(prev => prev.map(cat => {
+      if (cat.id !== catId) return cat;
+      return {
+        ...cat,
+        items: (cat.items || []).map(item => item.id === itemId ? { ...item, [field]: value } : item)
+      };
+    }));
+  };
+
+  const removeItem = (catId, itemId) => {
+    setCategories(prev => prev.map(cat => {
+      if (cat.id !== catId) return cat;
+      return {
+        ...cat,
+        items: (cat.items || []).filter(item => item.id !== itemId)
+      };
+    }));
   };
 
   return (
@@ -53,6 +159,12 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
             className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'prices' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Market Prices
+          </button>
+          <button 
+            onClick={() => setActiveTab('modules')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'modules' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            Modules
           </button>
         </div>
 
@@ -215,18 +327,18 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
               <p className="text-xs text-slate-500 bg-slate-950 p-3 rounded border border-slate-800">
                 Update prices here. They will override the defaults instantly.
               </p>
-              {CATEGORIES.map(cat => (
+              {categories.map(cat => (
                 <div key={cat.id}>
                   <h3 className="text-xs font-bold uppercase text-emerald-500 mb-2">{cat.title}</h3>
                   <div className="space-y-2">
-                    {cat.items.map(item => (
+                    {(cat.items || []).map(item => (
                       <div key={item.id} className="flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
                         <span className="text-sm text-slate-300">{item.name}</span>
                         <div className="flex items-center gap-2">
                           <input 
                             type="number" 
                             className="w-20 bg-slate-900 border border-slate-700 rounded p-1 text-right text-white focus:border-emerald-500 outline-none text-sm"
-                            value={prices[item.id] || item.defaultPrice}
+                            value={prices[item.id] ?? item.defaultPrice}
                             onChange={(e) => handlePriceChange(item.id, e.target.value)}
                           />
                           <span className="text-xs text-slate-500">EGP</span>
@@ -236,6 +348,124 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, onSave
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'modules' && (
+            <div className="space-y-4">
+              <p className="text-xs text-slate-500 bg-slate-950 p-3 rounded border border-slate-800">
+                Configure the modules and items shown in the planner. This overrides the default preset from data.js.
+              </p>
+              {categories.map(cat => (
+                <div key={cat.id} className="border border-slate-800 rounded-xl p-4 bg-slate-950/50 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 space-y-2">
+                      <input
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-white text-sm font-semibold focus:border-cyan-400 outline-none"
+                        value={cat.title}
+                        onChange={(e) => updateCategoryField(cat.id, 'title', e.target.value)}
+                      />
+                      <input
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-white text-xs focus:border-cyan-400 outline-none"
+                        value={cat.instruction || ''}
+                        onChange={(e) => updateCategoryField(cat.id, 'instruction', e.target.value)}
+                        placeholder="Guidance text"
+                      />
+                    </div>
+                    <div className="w-32">
+                      <label className="text-[10px] uppercase text-slate-500 font-bold">Min</label>
+                      <input
+                        type="number"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-sm focus:border-cyan-400 outline-none"
+                        value={cat.minSelection}
+                        onChange={(e) => updateCategoryField(cat.id, 'minSelection', parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                    <button onClick={() => removeCategory(cat.id)} className="text-slate-600 hover:text-rose-400 transition-colors mt-1">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {(cat.items || []).map(item => (
+                      <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-lg p-3 space-y-2">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 space-y-2">
+                            <input
+                              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white focus:border-cyan-400 outline-none"
+                              value={item.name}
+                              onChange={(e) => updateItemField(cat.id, item.id, 'name', e.target.value)}
+                            />
+                            <input
+                              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:border-cyan-400 outline-none"
+                              value={item.qty}
+                              onChange={(e) => updateItemField(cat.id, item.id, 'qty', e.target.value)}
+                            />
+                          </div>
+                          <div className="w-20">
+                            <label className="text-[10px] uppercase text-slate-500 font-bold">Price</label>
+                            <input
+                              type="number"
+                              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white focus:border-cyan-400 outline-none"
+                              value={item.defaultPrice}
+                              onChange={(e) => updateItemField(cat.id, item.id, 'defaultPrice', parseFloat(e.target.value) || 0)}
+                            />
+                          </div>
+                          <div className="w-20">
+                            <label className="text-[10px] uppercase text-slate-500 font-bold">Cals</label>
+                            <input
+                              type="number"
+                              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white focus:border-cyan-400 outline-none"
+                              value={item.calories}
+                              onChange={(e) => updateItemField(cat.id, item.id, 'calories', parseFloat(e.target.value) || 0)}
+                            />
+                          </div>
+                          <div className="w-20">
+                            <label className="text-[10px] uppercase text-slate-500 font-bold">Prot</label>
+                            <input
+                              type="number"
+                              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white focus:border-cyan-400 outline-none"
+                              value={item.protein}
+                              onChange={(e) => updateItemField(cat.id, item.id, 'protein', parseFloat(e.target.value) || 0)}
+                            />
+                          </div>
+                          <button onClick={() => removeItem(cat.id, item.id)} className="text-slate-600 hover:text-rose-400 transition-colors mt-6">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <input
+                            className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 focus:border-cyan-400 outline-none"
+                            value={item.shoppingItem || ''}
+                            onChange={(e) => updateItemField(cat.id, item.id, 'shoppingItem', e.target.value)}
+                            placeholder="Shopping list label"
+                          />
+                          <input
+                            className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 focus:border-cyan-400 outline-none"
+                            value={item.prep || ''}
+                            onChange={(e) => updateItemField(cat.id, item.id, 'prep', e.target.value)}
+                            placeholder="Prep notes"
+                          />
+                        </div>
+                      </div>
+                    ))}
+
+                    <button
+                      onClick={() => addItem(cat.id)}
+                      className="w-full border border-dashed border-cyan-500/40 text-cyan-300 rounded-lg py-2 text-sm flex items-center justify-center gap-2 hover:border-cyan-400 hover:text-cyan-200"
+                    >
+                      <Plus size={16} /> Add item
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                onClick={addCategory}
+                className="w-full border border-dashed border-cyan-500/40 text-cyan-300 rounded-xl py-3 text-sm flex items-center justify-center gap-2 hover:border-cyan-400 hover:text-cyan-200"
+              >
+                <Plus size={18} /> Add category
+              </button>
             </div>
           )}
 

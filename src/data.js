@@ -14,7 +14,7 @@ export const STAPLES = {
   protein: 12
 };
 
-export const CATEGORIES = [
+export const DEFAULT_CATEGORIES = [
   {
     id: "protein",
     title: "Protein Base",
