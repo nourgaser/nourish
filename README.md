@@ -89,3 +89,7 @@ Contributions are welcome. Please open an issue to discuss significant changes b
 ## License
 
 MIT. Add or update the LICENSE file if you plan to distribute under a different license.
+
+## Disclaimer
+
+This project was created by Nour Gaser while trying various generative AI tools; 99% of the code is AI generated and I take no credit for it. It is provided as-is without warranty. Always verify nutritional and pricing information independently before making purchasing decisions.
