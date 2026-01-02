@@ -57,15 +57,15 @@ npm run dev
 
 ## ⚙️ Settings-first configuration
 
-You no longer have to edit source files to update prices or targets. Open the **Settings** tab (top of the app) to change:
+You no longer have to edit source files to update prices or targets. Open **Settings** (top right) to change:
 
 - Budget per trip, trip length (days), daily calorie and protein targets.
-- Staples assumptions (cost, calories, protein) that are always added to daily averages.
-- Categories and items via a JSON editor (advanced). You can change min selections, prices, and add/remove items.
+- Staples buffer (cost, calories, protein) that always gets added into the math, plus an "auto-include staples" toggle.
+- Market price overrides per item.
 
-All settings persist to `localStorage` under `nourish_settings_v1`. The cart persists under `nourish_cart_v3`.
+Profiles persist under `nourish_profile`, price overrides under `nourish_prices`, staples under `nourish_staples_v1`, and the cart under `nourish_cart_v3`.
 
-If you prefer code-first defaults, edit `src/data.js` (`DEFAULT_APP_CONFIG`, `DEFAULT_STAPLES`, `DEFAULT_CATEGORIES`) and hit **Reset defaults** inside Settings to re-seed the UI.
+If you prefer code-first defaults, edit `src/data.js` (`DEFAULT_CONFIG`, `STAPLES`, `CATEGORIES`) and hit **Reset to Nourish defaults** inside Settings to re-seed the UI.
 
 ## 📱 Usage Workflow
 

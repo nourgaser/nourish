@@ -70,18 +70,18 @@ export const CATEGORIES = [
   {
     id: "breakfast",
     title: "Breakfast & Carbs",
-    minSelection: 1,
+    minSelection: 2,
     instruction: "Pick at least 1 Breakfast source",
     items: [
       {
         id: "eggs_pack",
-        name: "Eggs (30)",
+        name: "Eggs (10)",
         qty: "1 Pack",
-        defaultPrice: 190, 
-        calories: 2100,
-        protein: 180,
+        defaultPrice: 65, 
+        calories: 700,
+        protein: 60,
         tags: ["Essential", "Gold"],
-        shoppingItem: "Red/White Eggs (30 Pack)",
+        shoppingItem: "Red/White Eggs (10 Pack)",
         prep: "Boil 10 at a time."
       },
       {

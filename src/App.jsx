@@ -8,10 +8,29 @@ import { Logo } from "./Logo";
 import { Onboarding } from "./Onboarding";
 import { Settings } from "./Settings";
 
+function mergeProfileDefaults(profile) {
+  const normalized = profile || {};
+  return {
+    name: "",
+    budgetLimit: DEFAULT_CONFIG.budgetLimit,
+    targetDailyCalories: DEFAULT_CONFIG.targetDailyCalories,
+    targetDailyProtein: DEFAULT_CONFIG.targetDailyProtein,
+    tripDurationDays: DEFAULT_CONFIG.tripDurationDays,
+    ibsMode: DEFAULT_CONFIG.ibsMode,
+    autoIncludeStaples: false,
+    ...normalized,
+    budgetLimit: Number(normalized.budgetLimit ?? DEFAULT_CONFIG.budgetLimit),
+    targetDailyCalories: Number(normalized.targetDailyCalories ?? DEFAULT_CONFIG.targetDailyCalories),
+    targetDailyProtein: Number(normalized.targetDailyProtein ?? DEFAULT_CONFIG.targetDailyProtein),
+    tripDurationDays: Number(normalized.tripDurationDays ?? DEFAULT_CONFIG.tripDurationDays),
+  };
+}
+
 const App = () => {
   // --- GLOBAL STATE ---
   const [userProfile, setUserProfile] = useState(null);
   const [priceOverrides, setPriceOverrides] = useState({});
+  const [staplesConfig, setStaplesConfig] = useState(STAPLES);
   const [cart, setCart] = useState({});
   
   // --- UI STATE ---
@@ -25,10 +44,12 @@ const App = () => {
     const savedProfile = localStorage.getItem("nourish_profile");
     const savedPrices = localStorage.getItem("nourish_prices");
     const savedCart = localStorage.getItem("nourish_cart_v3");
+    const savedStaples = localStorage.getItem("nourish_staples_v1");
 
-    if (savedProfile) setUserProfile(JSON.parse(savedProfile));
+    if (savedProfile) setUserProfile(mergeProfileDefaults(JSON.parse(savedProfile)));
     if (savedPrices) setPriceOverrides(JSON.parse(savedPrices));
     if (savedCart) setCart(JSON.parse(savedCart));
+    if (savedStaples) setStaplesConfig(JSON.parse(savedStaples));
   }, []);
 
   // Save on change
@@ -44,15 +65,24 @@ const App = () => {
     localStorage.setItem("nourish_cart_v3", JSON.stringify(cart));
   }, [cart]);
 
+  useEffect(() => {
+    localStorage.setItem("nourish_staples_v1", JSON.stringify(staplesConfig));
+  }, [staplesConfig]);
+
 
   // --- HANDLERS ---
   const handleOnboardingComplete = (data) => {
-    setUserProfile(data);
+    const normalized = mergeProfileDefaults(data);
+    setUserProfile(normalized);
+    setIncludeStaples(normalized.autoIncludeStaples ?? false);
   };
 
-  const handleSettingsSave = (newProfile, newPrices) => {
-    setUserProfile(newProfile);
+  const handleSettingsSave = (newProfile, newPrices, newStaples) => {
+    const normalizedProfile = mergeProfileDefaults(newProfile);
+    setUserProfile(normalizedProfile);
     setPriceOverrides(newPrices);
+    setStaplesConfig(newStaples);
+    setIncludeStaples(normalizedProfile.autoIncludeStaples ?? false);
   };
 
   const updateQuantity = (itemId, delta) => {
@@ -78,6 +108,12 @@ const App = () => {
   };
 
   // --- CALCULATIONS ---
+  useEffect(() => {
+    if (userProfile?.autoIncludeStaples !== undefined) {
+      setIncludeStaples(userProfile.autoIncludeStaples);
+    }
+  }, [userProfile]);
+
   const stats = useMemo(() => {
     if (!userProfile) return null;
 
@@ -103,12 +139,14 @@ const App = () => {
       });
     });
 
-    const finalCost = includeStaples ? tripCost + STAPLES.cost : tripCost;
-    const dailyCals = (tripCals / DEFAULT_CONFIG.tripDurationDays) + STAPLES.calories;
-    const dailyProtein = (tripProtein / DEFAULT_CONFIG.tripDurationDays) + STAPLES.protein;
+    const staples = staplesConfig || STAPLES;
+    const tripDuration = Math.max(1, userProfile.tripDurationDays || DEFAULT_CONFIG.tripDurationDays);
+    const finalCost = includeStaples ? tripCost + staples.cost : tripCost;
+    const dailyCals = (tripCals / tripDuration) + staples.calories;
+    const dailyProtein = (tripProtein / tripDuration) + staples.protein;
 
     return { finalCost, dailyCals, dailyProtein, totalItems, categoryCounts };
-  }, [cart, includeStaples, userProfile, priceOverrides]);
+  }, [cart, includeStaples, userProfile, priceOverrides, staplesConfig]);
 
 
   // --- EARLY RETURN: ONBOARDING ---
@@ -118,10 +156,16 @@ const App = () => {
 
   // --- ADVISOR LOGIC ---
   const getSmartAdvice = () => {
-    const budgetLimit = userProfile.budgetLimit + (includeStaples ? STAPLES.cost : 0);
+    const staples = staplesConfig || STAPLES;
+    const budgetLimit = userProfile.budgetLimit + (includeStaples ? staples.cost : 0);
+    const budgetGrace = 50;
+    const overBudget = stats.finalCost - budgetLimit;
     
-    if (stats.finalCost > budgetLimit) {
-      return { type: 'error', text: `Over budget by ${stats.finalCost - budgetLimit} EGP.` };
+    if (overBudget > budgetGrace) {
+      return { type: 'error', text: `Over budget by ${overBudget} EGP. (Max buffer ${budgetGrace})` };
+    }
+    if (overBudget > 0) {
+      return { type: 'warn', text: `Over budget by ${overBudget} EGP but within the ${budgetGrace} EGP buffer.` };
     }
     
     // Category Mins
@@ -152,6 +196,7 @@ const App = () => {
         <Settings 
           currentProfile={userProfile} 
           currentPrices={priceOverrides} 
+          currentStaples={staplesConfig}
           onSave={handleSettingsSave}
           onClose={() => setShowSettings(false)}
         />
@@ -274,7 +319,7 @@ const App = () => {
                     <AlertCircle size={16} className="text-amber-500" />
                     <div>
                       <div className="text-slate-200 font-medium text-sm">Refill Staples</div>
-                      <div className="text-xs text-slate-500">Rice, Oil, Honey, Spices ({STAPLES.cost} EGP)</div>
+                      <div className="text-xs text-slate-500">Rice, Oil, Honey, Spices ({staplesConfig.cost} EGP)</div>
                     </div>
                  </div>
                )}
