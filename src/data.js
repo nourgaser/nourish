@@ -1,127 +1,169 @@
-// src/data.js
-
 export const APP_CONFIG = {
-  budgetLimit: 750, // Per trip (assuming 2 trips/week = 6000/month)
+  budgetLimit: 750, 
   targetDailyCalories: 2700,
-  targetDailyProtein: 140, // Grams
-  tripDurationDays: 3.5, // Shopping for half the week
+  targetDailyProtein: 140, 
+  tripDurationDays: 3.5, 
 };
 
-export const STAPLES_PANTRY = {
-  // Items you have at home (Monthly buy). We count their calories but not their trip cost.
-  rice: { name: "White Rice", calPer100g: 130, proteinPer100g: 2.7 },
-  oliveOil: { name: "Olive Oil", calPer100g: 884, proteinPer100g: 0 },
-  honey: { name: "Honey", calPer100g: 304, proteinPer100g: 0.3 },
-};
+// Items usually bought monthly, but we need to toggle them sometimes
+export const STAPLES_COST = 250; // Cost if you need to refill Rice/Oil/Honey
+export const STAPLES_CALORIES = 650; // Daily Calorie contribution from staples
+export const STAPLES_PROTEIN = 8;    // Daily Protein contribution from staples
 
 export const CATEGORIES = [
   {
     id: "protein",
-    title: "Main Protein (3-4 Days)",
+    title: "Protein Base",
     items: [
       {
         id: "chicken_breast",
-        name: "Chicken Breast (1kg)",
+        name: "Chicken Breast",
+        qty: "1 kg",
         price: 265,
-        calories: 1650, // Total in pack
-        protein: 310,   // Total in pack
-        ibsNote: "Safe. Good for lean bulk.",
-        mealIdea: "Pan-seared cubes with rice",
+        calories: 1650, 
+        protein: 310,   
+        tags: ["Lean", "Safe"],
+        shoppingItem: "Chicken Breast Fillet (1kg)",
+        prep: "Pan-sear batches. Keep bland for bad IBS days."
       },
       {
         id: "minced_beef",
-        name: "Low Fat Minced Beef (750g)",
-        price: 240, // Est
+        name: "Lean Minced Beef",
+        qty: "750g",
+        price: 240, 
         calories: 1875,
         protein: 190,
-        ibsNote: "Drain fat well. High Iron.",
-        mealIdea: "Bolognese or Beef hash with potatoes",
+        tags: ["Iron High", "Energy"],
+        shoppingItem: "Mafroom (Low Fat) - 750g",
+        prep: "Cook with cumin/salt. Drain fat well."
       },
       {
         id: "thighs",
-        name: "Boneless Thighs (1kg)",
-        price: 250, // Est
+        name: "Chicken Thighs",
+        qty: "1 kg",
+        price: 250, 
         calories: 2090,
         protein: 260,
-        ibsNote: "Higher fat but very satiating.",
-        mealIdea: "Oven roasted with herbs",
+        tags: ["Tasty", "Fatty"],
+        shoppingItem: "Boneless Thighs (1kg)",
+        prep: "Oven roast. Higher fat content = Satiety."
+      },
+      {
+        id: "tuna_mix",
+        name: "Tuna & Corn",
+        qty: "3 Cans",
+        price: 180, 
+        calories: 600,
+        protein: 90,
+        tags: ["No Cook", "Omega-3"],
+        shoppingItem: "Rio Mare Tuna (3) + Sweet Corn",
+        prep: "Mix with corn & mayo. Zero effort."
       },
     ],
   },
   {
     id: "breakfast",
-    title: "Breakfast & Carbs",
+    title: "Morning Fuel",
     items: [
       {
-        id: "oats_milk",
-        name: "Oats + Milkman Lactose Free",
-        price: 130, // 50 (Oats amortized) + 80 (Milk)
-        calories: 1400, // 1L Milk + 200g Oats
+        id: "oats_bundle",
+        name: "Oats & LF Milk",
+        qty: "Bundle",
+        price: 130,
+        calories: 1400, 
         protein: 60,
-        ibsNote: "Fiber heavy. Good for mornings.",
-        mealIdea: "Overnight oats with honey",
+        tags: ["Fiber", "Heart"],
+        shoppingItem: "Milkman Lactose-Free + Oats",
+        prep: "Overnight oats. Add your pantry Honey."
       },
       {
-        id: "belila_milk",
-        name: "Harvest Belila + Milkman",
-        price: 101, // 21 (Can) + 80 (Milk)
+        id: "belila_bundle",
+        name: "Belila Warm-Up",
+        qty: "2 Cans",
+        price: 101, 
         calories: 900, 
         protein: 40,
-        ibsNote: "Warm comfort food.",
-        mealIdea: "Warm belila soup",
+        tags: ["Comfort", "Fast"],
+        shoppingItem: "Harvest Belila (2) + Milkman LF",
+        prep: "Heat in microwave. Easy on stomach."
       },
       {
         id: "eggs_foul",
-        name: "30 Eggs + 2 Foul Cans",
-        price: 239, // 189 (Eggs) + 50 (Foul)
+        name: "Eggs & Foul",
+        qty: "Tray + 2 Cans",
+        price: 239, 
         calories: 2600,
         protein: 210,
-        ibsNote: "Rinse foul well. Eggs are gold standard.",
-        mealIdea: "Omelette breakfast + Foul dinner",
+        tags: ["High Prot", "Savory"],
+        shoppingItem: "Eggs (30) + Harvest Foul (2)",
+        prep: "Boil eggs in batch. Rinse foul well."
       },
     ],
   },
   {
     id: "produce",
-    title: "Counter-Top Vitamin C",
+    title: "Vitality (Counter)",
     items: [
       {
-        id: "citrus_mix",
-        name: "Tangerines + Bananas",
+        id: "immunity",
+        name: "Immunity C",
+        qty: "Citrus Mix",
         price: 75,
         calories: 600,
         protein: 8,
-        ibsNote: "Safe. Vitamin C helps Iron absorption.",
+        tags: ["Vit C", "Iron Absorb"],
+        shoppingItem: "Tangerines (1kg) + Guava/Orange",
+        prep: "Wash & Bowl. Eat with Protein meals."
       },
       {
-        id: "digest_mix",
-        name: "Cucumber + Bananas + Zucchini",
-        price: 90,
+        id: "potassium",
+        name: "Potassium Hit",
+        qty: "Bananas+",
+        price: 60,
         calories: 500,
-        protein: 10,
-        ibsNote: "Hydrating and gentle.",
+        protein: 5,
+        tags: ["Energy", "Safe"],
+        shoppingItem: "Bananas (1kg) + Cucumber",
+        prep: "Keep visible on dining table."
+      },
+      {
+        id: "crunch",
+        name: "The Crunch",
+        qty: "Apples/Carrot",
+        price: 120,
+        calories: 600,
+        protein: 5,
+        tags: ["Snack", "Fiber"],
+        shoppingItem: "Apples (1kg) + Carrots",
+        prep: "Peel apples if bloated. Wash carrots."
       },
     ],
   },
   {
     id: "gut",
-    title: "Gut Health & Snacks",
+    title: "Gut Shield",
     items: [
       {
         id: "rayeb",
-        name: "3x Rayeb Milk",
+        name: "Rayeb Force",
+        qty: "3 Bottles",
         price: 90,
         calories: 510,
         protein: 27,
-        ibsNote: "Essential for digestion.",
+        tags: ["Probiotic", "Essential"],
+        shoppingItem: "Juhayna/Almarai Rayeb (3)",
+        prep: "Drink after heavy meals."
       },
       {
         id: "yogurt",
-        name: "4x Lactose Free Yogurt",
-        price: 80, // Est for lactose free
+        name: "Yogurt Cups",
+        qty: "4 Cups",
+        price: 80, 
         calories: 400,
         protein: 20,
-        ibsNote: "Light snack.",
+        tags: ["Light", "Snack"],
+        shoppingItem: "Lactose-Free Yogurt (4)",
+        prep: "Add honey."
       },
     ],
   },
