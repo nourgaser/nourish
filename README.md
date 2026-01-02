@@ -19,6 +19,7 @@ This tool solves the specific constraints of a busy Software Engineer/TA in Cair
 - **Build Tool:** Vite
 - **Styling:** Tailwind CSS (via standard utility classes)
 - **Icons:** Lucide React
+- **PWA:** Vite PWA plugin with Workbox runtime caching
 - **Deployment:** Static (GitHub Pages / Vercel / Self-hosted Nginx)
 
 ## 🚀 Getting Started
@@ -55,6 +56,13 @@ npm run dev
 
 4. Open `http://localhost:5173` on your phone or desktop.
 
+5. For a production-like PWA test, run a build preview:
+
+```bash
+npm run build && npm run preview
+
+```
+
 ## ⚙️ Settings-first configuration
 
 You no longer have to edit source files to update prices or targets. Open **Settings** (top right) to change:
@@ -78,10 +86,16 @@ If you prefer code-first defaults, edit `src/data.js` (`DEFAULT_CONFIG`, `STAPLE
 
 4. **Checkout:** The "Meal Plan" section at the bottom tells you exactly how to prep these specific items for the next 3 days.
 
+## 📲 PWA & Offline
+
+- **Install:** Open the app over HTTPS, then use your browser's "Add to Home Screen" or install prompt to pin it. The manifest and icons are bundled automatically.
+- **Offline shell:** The service worker caches pages, scripts, styles, and images so the planner loads even without connectivity. Data stays local in `localStorage`.
+- **Updates:** The worker auto-updates; a refresh will pick up new releases when available.
+
 ## 📝 Roadmap
 
 - [ ] Quick import/export of Settings JSON.
-- [ ] Offline-first install (PWA) polish.
+- [x] Offline-first install (PWA) polish.
 - [ ] Basic analytics of spend vs macros over time.
 
 ## 📄 License
