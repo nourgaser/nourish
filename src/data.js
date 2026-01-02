@@ -1,22 +1,21 @@
 export const APP_CONFIG = {
-  budgetLimit: 750, // Strict limit per trip
+  budgetLimit: 750, // Strict limit per trip (Twice a week)
   targetDailyCalories: 2700,
   targetDailyProtein: 140, 
   tripDurationDays: 3.5, 
 };
 
 // CONSTANTS FOR "INVISIBLE" FOOD (Staples)
-// Assumes: 400g Rice (cooked) + 2 tbsp Olive Oil + 1 tbsp Honey per day
-// This provides the caloric "floor" so you don't have to buy 100% of calories from fresh food.
 export const STAPLES_COST = 250; 
-export const STAPLES_CALORIES = 1100; // Increased for weight gain reality
+export const STAPLES_CALORIES = 1100; // Rice/Oil/Honey floor
 export const STAPLES_PROTEIN = 12;
 
 export const CATEGORIES = [
   {
     id: "protein",
-    title: "Protein Source",
-    subtitle: "Aim for 2 items",
+    title: "Protein Base",
+    minSelection: 1, // LOGIC: You must pick at least 2 items here
+    instruction: "Pick 2 packs for 3.5 days",
     items: [
       {
         id: "chicken_breast",
@@ -67,8 +66,20 @@ export const CATEGORIES = [
   {
     id: "breakfast",
     title: "Breakfast & Carbs",
-    subtitle: "Mix & Match",
+    minSelection: 1,
+    instruction: "Pick at least 1 Breakfast source",
     items: [
+      {
+        id: "eggs_pack",
+        name: "Eggs (30)",
+        qty: "1 Pack",
+        price: 190, 
+        calories: 2100,
+        protein: 180,
+        tags: ["Essential", "Gold"],
+        shoppingItem: "Red/White Eggs (30 Pack)",
+        prep: "Boil 10 at a time."
+      },
       {
         id: "oats_bundle",
         name: "Oats & LF Milk",
@@ -84,23 +95,12 @@ export const CATEGORIES = [
         id: "belila_bundle",
         name: "Belila Warm-Up",
         qty: "2 Cans",
-        price: 50, // Adjusted down (Just cans, assuming milk bought above or separate)
+        price: 50,
         calories: 400, 
         protein: 15,
         tags: ["Comfort", "Fast"],
         shoppingItem: "Harvest Belila (2 cans)",
         prep: "Heat in microwave."
-      },
-      {
-        id: "eggs_pack",
-        name: "Eggs (30)",
-        qty: "1 Pack",
-        price: 190, 
-        calories: 2100,
-        protein: 180,
-        tags: ["Essential", "Gold"],
-        shoppingItem: "Red/White Eggs (30 Pack)",
-        prep: "Boil 10 at a time."
       },
       {
         id: "foul_cans",
@@ -118,8 +118,31 @@ export const CATEGORIES = [
   {
     id: "produce",
     title: "Fresh & Vitality",
-    subtitle: "Fill the gaps",
+    minSelection: 2,
+    instruction: "Pick 2 types of fresh food",
     items: [
+      {
+        id: "apples",
+        name: "Apples",
+        qty: "1 kg",
+        price: 110,
+        calories: 520,
+        protein: 3,
+        tags: ["Fiber"],
+        shoppingItem: "Apples (1kg)",
+        prep: "Peel skin if bloated. Keep on counter."
+      },
+      {
+        id: "bananas_kg",
+        name: "Bananas",
+        qty: "1 kg",
+        price: 45,
+        calories: 900,
+        protein: 10,
+        tags: ["Potassium"],
+        shoppingItem: "Bananas (1kg)",
+        prep: "Counter top visibility."
+      },
       {
         id: "citrus_kg",
         name: "Tangerines",
@@ -132,33 +155,23 @@ export const CATEGORIES = [
         prep: "Snack with Iron sources."
       },
       {
-        id: "bananas_kg",
-        name: "Bananas",
-        qty: "1 kg",
-        price: 45,
-        calories: 900,
-        protein: 10,
-        tags: ["Potassium"],
-        shoppingItem: "Bananas (1kg)",
-        prep: "Counter top."
-      },
-      {
         id: "veg_mix",
         name: "Veg Salad Base",
         qty: "2 kg mix",
-        price: 60,
+        price: 75,
         calories: 100,
         protein: 5,
         tags: ["Hydration"],
-        shoppingItem: "Cucumber + Peppers",
-        prep: "Wash immediately."
+        shoppingItem: "Cucumber + Peppers + Tomatoes",
+        prep: "Wash immediately. Use green onion tops only."
       },
     ],
   },
   {
     id: "gut",
     title: "Gut Shield",
-    subtitle: "Don't skip",
+    minSelection: 1,
+    instruction: "Essential for IBS",
     items: [
       {
         id: "rayeb",
