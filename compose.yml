@@ -1,0 +1,19 @@
+services:
+  nourish:
+    build: .
+    container_name: nourish-planner
+    restart: unless-stopped
+    environment:
+      - VIRTUAL_HOST=planner.lan,planner.nourgaser.com
+      - VIRTUAL_PORT=80
+      - LETSENCRYPT_HOST=planner.nourgaser.com
+      - LETSENCRYPT_EMAIL=your@email.com
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:
+    external: true
+    # CHANGE THIS to your actual proxy network name 
+    # (often 'nginx-proxy', 'web', or 'proxy_default')
+    name: nginx-proxy

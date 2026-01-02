@@ -1,9 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  body {
-    @apply bg-slate-100 text-slate-900 antialiased;
-  }
+:root {
+  color: #e2e8f0;
+  background: #020617;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at 30% 20%, #0f172a 0%, #020617 45%, #010314 100%);
+  color: inherit;
+}
+
+* {
+  box-sizing: border-box;
 }
