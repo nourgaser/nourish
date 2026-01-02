@@ -1,32 +1,29 @@
-# 🛒 Nourish
+# Nourish
 
-A minimalist, mobile-first grocery planner tuned for Seoudi Market (Cairo). It keeps you inside budget while hitting calorie/protein targets, and it is IBS-friendly by default.
+Nourish is a mobile-first grocery planning assistant that keeps short grocery runs on budget while meeting calorie and protein targets. It is local-first, offline-capable, and built for quick decision making on the go.
 
 ---
 
-## 🎯 Goals & Logic
+## Features
 
-This tool solves the specific constraints of a busy Software Engineer/TA in Cairo:
+- Budget and macro guardrails with a live advisor for cost, daily calories, and protein.
+- Modular selection across Protein Base, Breakfast & Carbs, Fresh & Vitality, and Gut Shield categories with minimums per category.
+- Configurable defaults via Settings for budget, macro targets, trip length, staples buffer, and per-item price overrides.
+- Local-first persistence: profile, cart, staples, categories, prices, and theme are stored in `localStorage` and can be reset to defaults at any time.
+- PWA-ready with light/dark themes for a friendly, installable offline experience.
 
-1. **Budget Control:** Tracks a ~750 EGP bi-weekly limit (approx. 6,000 EGP/month total).
-2. **Nutritional Targeting:** Calculates daily averages to ensure a surplus (~2,700 kcal) and high protein (~140g) for muscle recovery.
-3. **IBS Guardrails:** Flags or filters items based on digestion sensitivity (e.g., Lactose-free options, peeling alerts).
-4. **Modular Logic:** "Slot machine" style selection prevents menu fatigue by allowing safe swapping of proteins and carbs without breaking the macro/budget bank.
+## Tech Stack
 
-## 🛠 Tech Stack
+- React 18 + Vite
+- Tailwind CSS utility-first styling
+- lucide-react icon set
+- Vite PWA plugin with Workbox runtime caching
 
-- **Framework:** React 18
-- **Build Tool:** Vite
-- **Styling:** Tailwind CSS (via standard utility classes)
-- **Icons:** Lucide React
-- **PWA:** Vite PWA plugin with Workbox runtime caching
-- **Deployment:** Static (GitHub Pages / Vercel / Self-hosted Nginx)
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-- Node.js (v18+ recommended)
+- Node.js 18+
 - npm or yarn
 
 ### Installation
@@ -34,71 +31,61 @@ This tool solves the specific constraints of a busy Software Engineer/TA in Cair
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/seoudi-planner.git
-cd seoudi-planner
-
+git clone https://github.com/nourgaser/nourish.git
+cd nourish
 ```
 
 2. Install dependencies:
 
 ```bash
 npm install
-# Required libs: lucide-react clsx tailwind-merge
-
 ```
 
-3. Run the development server:
+3. Start the development server:
 
 ```bash
 npm run dev
-
 ```
 
-4. Open `http://localhost:5173` on your phone or desktop.
-
-5. For a production-like PWA test, run a build preview:
+4. For a production-like test, build and preview:
 
 ```bash
 npm run build && npm run preview
-
 ```
 
-## ⚙️ Settings-first configuration
+## Usage
 
-You no longer have to edit source files to update prices or targets. Open **Settings** (top right) to change:
+- Complete onboarding to set budget, macro targets, trip duration, and whether staples are auto-included.
+- Select items across categories; the stats cards and advisor banner keep you inside budget and macro guardrails.
+- Toggle staples when you need to restock pantry basics.
+- Open Settings (top right) to update budget/targets, trip length, staples, price overrides, and categories; you can reset to defaults at any time.
+- Data is stored under `nourish_profile`, `nourish_prices`, `nourish_staples_v1`, `nourish_categories_v1`, `nourish_cart_v3`, and `nourish_theme`. Use **Reset to Nourish defaults** to clear local state.
 
-- Budget per trip, trip length (days), daily calorie and protein targets.
-- Staples buffer (cost, calories, protein) that always gets added into the math, plus an "auto-include staples" toggle.
-- Market price overrides per item.
+For code-first defaults, edit [src/data.js](src/data.js) (`DEFAULT_CONFIG`, `STAPLES`, `DEFAULT_CATEGORIES`).
 
-Profiles persist under `nourish_profile`, price overrides under `nourish_prices`, staples under `nourish_staples_v1`, and the cart under `nourish_cart_v3`.
+## Scripts
 
-If you prefer code-first defaults, edit `src/data.js` (`DEFAULT_CONFIG`, `STAPLES`, `CATEGORIES`) and hit **Reset to Nourish defaults** inside Settings to re-seed the UI.
+- `npm run dev` — start the dev server
+- `npm run build` — create a production build
+- `npm run preview` — preview the production build
+- `npm run lint` — run ESLint
 
-## 📱 Usage Workflow
+## PWA & Offline
 
-1. **Open the App:** Access the app on your phone while entering Seoudi.
-2. **Select Modules:** Tap one item from each category (Protein, Breakfast, Produce, Gut Health).
-3. **Check Stats:**
+- Install by opening the app over HTTPS and using your browser's install prompt or "Add to Home Screen." The manifest and icons are bundled.
+- The service worker caches pages, scripts, styles, and images so the planner loads offline; data stays local in `localStorage`.
+- Updates are picked up automatically; refresh to apply the latest service worker.
 
-- **Green:** You are within budget and hitting nutritional goals.
-- **Amber/Red:** You are under-eating (calories/protein) or over-spending.
+## Roadmap
 
-4. **Checkout:** The "Meal Plan" section at the bottom tells you exactly how to prep these specific items for the next 3 days.
+- Import/export of Settings JSON
+- Additional presets for markets and dietary profiles
+- Spend vs macro summaries over time
 
-## 📲 PWA & Offline
+## Contributing
 
-- **Install:** Open the app over HTTPS, then use your browser's "Add to Home Screen" or install prompt to pin it. The manifest and icons are bundled automatically.
-- **Offline shell:** The service worker caches pages, scripts, styles, and images so the planner loads even without connectivity. Data stays local in `localStorage`.
-- **Updates:** The worker auto-updates; a refresh will pick up new releases when available.
+Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request.
 
-## 📝 Roadmap
+## License
 
-- [ ] Quick import/export of Settings JSON.
-- [x] Offline-first install (PWA) polish.
-- [ ] Basic analytics of spend vs macros over time.
-
-## 📄 License
-
-Unlicensed / Personal Use.
-_Prices and availability based on Seoudi Market, Cairo (Jan 2026)._
+MIT. Add or update the LICENSE file if you plan to distribute under a different license.

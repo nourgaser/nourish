@@ -17,7 +17,7 @@ export default defineConfig({
         id: '/nourish',
         name: 'Nourish Kitchen',
         short_name: 'Nourish',
-        description: 'Offline-ready grocery planner tuned for Seoudi Market macros, budget, and IBS-friendly picks.',
+        description: 'Offline-ready grocery planner tuned for grocery shopping macros, budget, and IBS-friendly picks.',
         theme_color: '#020617',
         background_color: '#020617',
         start_url: '/',
