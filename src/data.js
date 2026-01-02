@@ -1,27 +1,31 @@
-export const APP_CONFIG = {
-  budgetLimit: 750, // Strict limit per trip (Twice a week)
+// src/data.js
+
+export const DEFAULT_CONFIG = {
+  budgetLimit: 750, 
   targetDailyCalories: 2700,
   targetDailyProtein: 140, 
   tripDurationDays: 3.5, 
+  ibsMode: true, // Default to strict
 };
 
-// CONSTANTS FOR "INVISIBLE" FOOD (Staples)
-export const STAPLES_COST = 250; 
-export const STAPLES_CALORIES = 1100; // Rice/Oil/Honey floor
-export const STAPLES_PROTEIN = 12;
+export const STAPLES = {
+  cost: 250,
+  calories: 1100,
+  protein: 12
+};
 
 export const CATEGORIES = [
   {
     id: "protein",
     title: "Protein Base",
-    minSelection: 1, // LOGIC: You must pick at least 2 items here
+    minSelection: 2, 
     instruction: "Pick 2 packs for 3.5 days",
     items: [
       {
         id: "chicken_breast",
         name: "Chicken Breast",
         qty: "1 kg",
-        price: 265,
+        defaultPrice: 265, // Changed from 'price' to 'defaultPrice'
         calories: 1650, 
         protein: 310,   
         tags: ["Lean", "Safe"],
@@ -32,7 +36,7 @@ export const CATEGORIES = [
         id: "minced_beef",
         name: "Lean Minced Beef",
         qty: "750g",
-        price: 240, 
+        defaultPrice: 240, 
         calories: 1875,
         protein: 190,
         tags: ["Iron", "Energy"],
@@ -43,7 +47,7 @@ export const CATEGORIES = [
         id: "thighs",
         name: "Chicken Thighs",
         qty: "1 kg",
-        price: 250, 
+        defaultPrice: 250, 
         calories: 2090,
         protein: 260,
         tags: ["Tasty", "Bulking"],
@@ -54,7 +58,7 @@ export const CATEGORIES = [
         id: "tuna_mix",
         name: "Tuna Pack",
         qty: "3 Cans",
-        price: 180, 
+        defaultPrice: 180, 
         calories: 600,
         protein: 90,
         tags: ["No Cook", "Omega-3"],
@@ -73,7 +77,7 @@ export const CATEGORIES = [
         id: "eggs_pack",
         name: "Eggs (30)",
         qty: "1 Pack",
-        price: 190, 
+        defaultPrice: 190, 
         calories: 2100,
         protein: 180,
         tags: ["Essential", "Gold"],
@@ -84,7 +88,7 @@ export const CATEGORIES = [
         id: "oats_bundle",
         name: "Oats & LF Milk",
         qty: "Bundle",
-        price: 130,
+        defaultPrice: 130,
         calories: 1400, 
         protein: 60,
         tags: ["Fiber", "Heart"],
@@ -95,7 +99,7 @@ export const CATEGORIES = [
         id: "belila_bundle",
         name: "Belila Warm-Up",
         qty: "2 Cans",
-        price: 50,
+        defaultPrice: 50,
         calories: 400, 
         protein: 15,
         tags: ["Comfort", "Fast"],
@@ -106,7 +110,7 @@ export const CATEGORIES = [
         id: "foul_cans",
         name: "Foul Medames",
         qty: "2 Cans",
-        price: 50,
+        defaultPrice: 50,
         calories: 350,
         protein: 24,
         tags: ["Slow Carb"],
@@ -125,7 +129,7 @@ export const CATEGORIES = [
         id: "apples",
         name: "Apples",
         qty: "1 kg",
-        price: 110,
+        defaultPrice: 110,
         calories: 520,
         protein: 3,
         tags: ["Fiber"],
@@ -136,7 +140,7 @@ export const CATEGORIES = [
         id: "bananas_kg",
         name: "Bananas",
         qty: "1 kg",
-        price: 45,
+        defaultPrice: 45,
         calories: 900,
         protein: 10,
         tags: ["Potassium"],
@@ -147,7 +151,7 @@ export const CATEGORIES = [
         id: "citrus_kg",
         name: "Tangerines",
         qty: "1 kg",
-        price: 30,
+        defaultPrice: 30,
         calories: 500,
         protein: 8,
         tags: ["Vit C"],
@@ -158,7 +162,7 @@ export const CATEGORIES = [
         id: "veg_mix",
         name: "Veg Salad Base",
         qty: "2 kg mix",
-        price: 75,
+        defaultPrice: 75,
         calories: 100,
         protein: 5,
         tags: ["Hydration"],
@@ -177,7 +181,7 @@ export const CATEGORIES = [
         id: "rayeb",
         name: "Rayeb",
         qty: "3 Bottles",
-        price: 90,
+        defaultPrice: 90,
         calories: 510,
         protein: 27,
         tags: ["Probiotic"],
@@ -188,7 +192,7 @@ export const CATEGORIES = [
         id: "yogurt",
         name: "Yogurt LF",
         qty: "4 Cups",
-        price: 80, 
+        defaultPrice: 80, 
         calories: 400,
         protein: 20,
         tags: ["Light"],

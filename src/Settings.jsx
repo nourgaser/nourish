@@ -1,0 +1,150 @@
+import React, { useState } from 'react';
+import { X, Save, DollarSign } from 'lucide-react';
+import { CATEGORIES } from './data';
+
+export const Settings = ({ currentProfile, currentPrices, onSave, onClose }) => {
+  const [profile, setProfile] = useState(currentProfile);
+  const [prices, setPrices] = useState(currentPrices);
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'prices'
+
+  const handlePriceChange = (id, val) => {
+    setPrices(prev => ({ ...prev, [id]: parseInt(val) || 0 }));
+  };
+
+  const save = () => {
+    onSave(profile, prices);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-800 shadow-2xl flex flex-col max-h-[90vh]">
+        
+        {/* Header */}
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <h2 className="font-bold text-white text-lg">Settings</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-400">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-slate-800">
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'profile' ? 'text-rose-400 border-b-2 border-rose-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            Profile & Goals
+          </button>
+          <button 
+            onClick={() => setActiveTab('prices')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'prices' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            Market Prices
+          </button>
+        </div>
+
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6">
+          
+          {activeTab === 'profile' && (
+            <div className="space-y-4">
+               <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Name</label>
+                <input 
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-rose-500 outline-none"
+                  value={profile.name}
+                  onChange={e => setProfile({...profile, name: e.target.value})}
+                />
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Daily Cals</label>
+                  <input 
+                    type="number"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-rose-500 outline-none"
+                    value={profile.targetDailyCalories}
+                    onChange={e => setProfile({...profile, targetDailyCalories: parseInt(e.target.value)})}
+                  />
+                 </div>
+                 <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Daily Prot</label>
+                  <input 
+                    type="number"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-rose-500 outline-none"
+                    value={profile.targetDailyProtein}
+                    onChange={e => setProfile({...profile, targetDailyProtein: parseInt(e.target.value)})}
+                  />
+                 </div>
+               </div>
+               <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Trip Budget</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-3 text-slate-500 text-sm">EGP</span>
+                  <input 
+                    type="number"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 pl-12 text-white focus:border-rose-500 outline-none"
+                    value={profile.budgetLimit}
+                    onChange={e => setProfile({...profile, budgetLimit: parseInt(e.target.value)})}
+                  />
+                </div>
+               </div>
+               <div className="pt-4 border-t border-slate-800">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 rounded accent-rose-500"
+                      checked={profile.ibsMode}
+                      onChange={e => setProfile({...profile, ibsMode: e.target.checked})}
+                    />
+                    <span className="text-slate-200 font-medium">IBS Strict Mode</span>
+                  </label>
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'prices' && (
+            <div className="space-y-6">
+              <p className="text-xs text-slate-500 bg-slate-950 p-3 rounded border border-slate-800">
+                Update prices here. They will override the defaults instantly.
+              </p>
+              {CATEGORIES.map(cat => (
+                <div key={cat.id}>
+                  <h3 className="text-xs font-bold uppercase text-emerald-500 mb-2">{cat.title}</h3>
+                  <div className="space-y-2">
+                    {cat.items.map(item => (
+                      <div key={item.id} className="flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
+                        <span className="text-sm text-slate-300">{item.name}</span>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="number" 
+                            className="w-20 bg-slate-900 border border-slate-700 rounded p-1 text-right text-white focus:border-emerald-500 outline-none text-sm"
+                            value={prices[item.id] || item.defaultPrice}
+                            onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                          />
+                          <span className="text-xs text-slate-500">EGP</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-800">
+          <button 
+            onClick={save}
+            className="w-full bg-white text-slate-950 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+          >
+            <Save size={18} /> Save Changes
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};

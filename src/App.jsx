@@ -1,25 +1,59 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { 
   Activity, ShoppingBag, Wallet, Minus, Plus, 
-  RefreshCw, ChevronRight, AlertCircle, ShoppingCart, Trash2, CheckCircle2, XCircle
+  RefreshCw, ChevronRight, AlertCircle, ShoppingCart, Trash2, CheckCircle2, XCircle, Settings as SettingsIcon
 } from "lucide-react";
-import { APP_CONFIG, CATEGORIES, STAPLES_COST, STAPLES_CALORIES, STAPLES_PROTEIN } from "./data";
+import { CATEGORIES, DEFAULT_CONFIG, STAPLES } from "./data";
 import { Logo } from "./Logo";
+import { Onboarding } from "./Onboarding";
+import { Settings } from "./Settings";
 
 const App = () => {
-  // --- STATE ---
+  // --- GLOBAL STATE ---
+  const [userProfile, setUserProfile] = useState(null);
+  const [priceOverrides, setPriceOverrides] = useState({});
   const [cart, setCart] = useState({});
+  
+  // --- UI STATE ---
   const [includeStaples, setIncludeStaples] = useState(false);
   const [viewMode, setViewMode] = useState("plan"); 
+  const [showSettings, setShowSettings] = useState(false);
+
+  // --- PERSISTENCE ---
+  useEffect(() => {
+    // Load all data on mount
+    const savedProfile = localStorage.getItem("nourish_profile");
+    const savedPrices = localStorage.getItem("nourish_prices");
+    const savedCart = localStorage.getItem("nourish_cart_v3");
+
+    if (savedProfile) setUserProfile(JSON.parse(savedProfile));
+    if (savedPrices) setPriceOverrides(JSON.parse(savedPrices));
+    if (savedCart) setCart(JSON.parse(savedCart));
+  }, []);
+
+  // Save on change
+  useEffect(() => {
+    if (userProfile) localStorage.setItem("nourish_profile", JSON.stringify(userProfile));
+  }, [userProfile]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("nourish_cart_v3");
-    if (saved) setCart(JSON.parse(saved));
-  }, []);
+    localStorage.setItem("nourish_prices", JSON.stringify(priceOverrides));
+  }, [priceOverrides]);
 
   useEffect(() => {
     localStorage.setItem("nourish_cart_v3", JSON.stringify(cart));
   }, [cart]);
+
+
+  // --- HANDLERS ---
+  const handleOnboardingComplete = (data) => {
+    setUserProfile(data);
+  };
+
+  const handleSettingsSave = (newProfile, newPrices) => {
+    setUserProfile(newProfile);
+    setPriceOverrides(newPrices);
+  };
 
   const updateQuantity = (itemId, delta) => {
     setCart(prev => {
@@ -38,22 +72,29 @@ const App = () => {
     }
   };
 
+  // --- HELPER: Get Price ---
+  const getPrice = (itemId, defaultPrice) => {
+    return priceOverrides[itemId] !== undefined ? priceOverrides[itemId] : defaultPrice;
+  };
+
   // --- CALCULATIONS ---
   const stats = useMemo(() => {
+    if (!userProfile) return null;
+
     let tripCost = 0;
     let tripCals = 0;
     let tripProtein = 0;
     let totalItems = 0;
     const categoryCounts = {};
 
-    // Initialize counts
     CATEGORIES.forEach(c => categoryCounts[c.id] = 0);
 
     CATEGORIES.forEach(cat => {
       cat.items.forEach(item => {
         const qty = cart[item.id] || 0;
         if (qty > 0) {
-          tripCost += item.price * qty;
+          const currentPrice = getPrice(item.id, item.defaultPrice);
+          tripCost += currentPrice * qty;
           tripCals += item.calories * qty;
           tripProtein += item.protein * qty;
           totalItems += qty;
@@ -62,45 +103,60 @@ const App = () => {
       });
     });
 
-    const finalCost = includeStaples ? tripCost + STAPLES_COST : tripCost;
-    const dailyCals = (tripCals / APP_CONFIG.tripDurationDays) + STAPLES_CALORIES;
-    const dailyProtein = (tripProtein / APP_CONFIG.tripDurationDays) + STAPLES_PROTEIN;
+    const finalCost = includeStaples ? tripCost + STAPLES.cost : tripCost;
+    const dailyCals = (tripCals / DEFAULT_CONFIG.tripDurationDays) + STAPLES.calories;
+    const dailyProtein = (tripProtein / DEFAULT_CONFIG.tripDurationDays) + STAPLES.protein;
 
     return { finalCost, dailyCals, dailyProtein, totalItems, categoryCounts };
-  }, [cart, includeStaples]);
+  }, [cart, includeStaples, userProfile, priceOverrides]);
 
-  // --- SMART ADVISOR LOGIC ---
+
+  // --- EARLY RETURN: ONBOARDING ---
+  if (!userProfile) {
+    return <Onboarding onComplete={handleOnboardingComplete} />;
+  }
+
+  // --- ADVISOR LOGIC ---
   const getSmartAdvice = () => {
-    if (stats.finalCost > APP_CONFIG.budgetLimit + (includeStaples ? STAPLES_COST : 0)) {
-      return { type: 'error', text: `Over budget by ${stats.finalCost - (APP_CONFIG.budgetLimit + (includeStaples ? STAPLES_COST : 0))} EGP. Remove an item.` };
+    const budgetLimit = userProfile.budgetLimit + (includeStaples ? STAPLES.cost : 0);
+    
+    if (stats.finalCost > budgetLimit) {
+      return { type: 'error', text: `Over budget by ${stats.finalCost - budgetLimit} EGP.` };
     }
     
-    // Check Category Minimums
+    // Category Mins
     for (const cat of CATEGORIES) {
       if (stats.categoryCounts[cat.id] < cat.minSelection) {
         return { type: 'warn', text: `Add ${cat.minSelection - stats.categoryCounts[cat.id]} more item(s) to ${cat.title}.` };
       }
     }
 
-    // Check Macros
-    if (stats.dailyCals < APP_CONFIG.targetDailyCalories - 200) {
-      return { type: 'warn', text: `Low Calories (${Math.round(stats.dailyCals)}). Add Bananas or more Protein.` };
+    // Macros
+    if (stats.dailyCals < userProfile.targetDailyCalories - 200) {
+      return { type: 'warn', text: `Low Calories (${Math.round(stats.dailyCals)}). Goal: ${userProfile.targetDailyCalories}.` };
+    }
+    if (stats.dailyProtein < userProfile.targetDailyProtein - 10) {
+      return { type: 'warn', text: `Low Protein. Goal: ${userProfile.targetDailyProtein}g.` };
     }
 
-    if (stats.dailyProtein < APP_CONFIG.targetDailyProtein - 10) {
-      return { type: 'warn', text: `Low Protein. Add Eggs or Yogurt.` };
-    }
-
-    return { type: 'success', text: "Plan looks perfect! You're ready." };
+    return { type: 'success', text: "Plan looks solid. Ready to shop." };
   };
 
   const advice = getSmartAdvice();
-  const isPlanValid = advice.type === 'success' || advice.type === 'warn'; // Allow warnings, block errors? Or block warnings too? 
-  // Let's block 'warn' from checking out easily to enforce habits, but user can override if they really want.
   const canCheckout = advice.type !== 'error';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-rose-500/30">
+      
+      {showSettings && (
+        <Settings 
+          currentProfile={userProfile} 
+          currentPrices={priceOverrides} 
+          onSave={handleSettingsSave}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
       <div className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-6 pb-32 sm:max-w-xl">
         
         {/* HEADER */}
@@ -111,12 +167,17 @@ const App = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white">NOURISH</h1>
-              <p className="text-xs text-slate-400 font-medium tracking-wide">GA SER'S KITCHEN</p>
+              <p className="text-xs text-slate-400 font-medium tracking-wide uppercase">{userProfile.name}'S KITCHEN</p>
             </div>
           </div>
-          <button onClick={resetPlan} className="p-2 text-slate-500 hover:text-rose-400">
-            <RefreshCw size={18} />
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setShowSettings(true)} className="p-2 text-slate-500 hover:text-white transition-colors">
+              <SettingsIcon size={20} />
+            </button>
+            <button onClick={resetPlan} className="p-2 text-slate-500 hover:text-rose-400 transition-colors">
+              <RefreshCw size={20} />
+            </button>
+          </div>
         </header>
 
         {/* SMART ADVISOR BANNER */}
@@ -132,12 +193,12 @@ const App = () => {
 
         {/* STATS */}
         <section className="grid grid-cols-3 gap-3 mb-6">
-          <StatCard icon={<Wallet size={16} />} label="Cost" value={stats.finalCost} limit={APP_CONFIG.budgetLimit} unit="EGP" isCurrency />
-          <StatCard icon={<Activity size={16} />} label="Cals" value={Math.round(stats.dailyCals)} limit={APP_CONFIG.targetDailyCalories} unit="" />
-          <StatCard icon={<ShoppingBag size={16} />} label="Prot" value={Math.round(stats.dailyProtein)} limit={APP_CONFIG.targetDailyProtein} unit="g" />
+          <StatCard icon={<Wallet size={16} />} label="Cost" value={stats.finalCost} limit={userProfile.budgetLimit} unit="EGP" isCurrency />
+          <StatCard icon={<Activity size={16} />} label="Cals" value={Math.round(stats.dailyCals)} limit={userProfile.targetDailyCalories} unit="" />
+          <StatCard icon={<ShoppingBag size={16} />} label="Prot" value={Math.round(stats.dailyProtein)} limit={userProfile.targetDailyProtein} unit="g" />
         </section>
 
-        {/* STAPLES */}
+        {/* STAPLES TOGGLE */}
         <div className="flex items-center justify-between bg-slate-900/40 p-3 rounded-xl border border-slate-800/50 mb-6">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${includeStaples ? 'bg-amber-400' : 'bg-slate-700'}`} />
@@ -148,6 +209,7 @@ const App = () => {
           </button>
         </div>
 
+        {/* MAIN CONTENT AREA */}
         {viewMode === "plan" ? (
           <div className="flex flex-col gap-8 animate-in fade-in">
             {CATEGORIES.map((cat) => {
@@ -155,9 +217,7 @@ const App = () => {
               const isSatisfied = currentCount >= cat.minSelection;
 
               return (
-                <div key={cat.id} className={`space-y-3 transition-opacity ${isSatisfied ? 'opacity-100' : 'opacity-100'}`}>
-                  
-                  {/* Category Header with Validation Check */}
+                <div key={cat.id} className="space-y-3">
                   <div className="flex items-center justify-between px-1">
                     <div>
                       <h2 className={`text-xs font-bold uppercase tracking-widest ${isSatisfied ? "text-emerald-400" : "text-slate-500"}`}>
@@ -173,12 +233,14 @@ const App = () => {
                   <div className="grid grid-cols-1 gap-3">
                     {cat.items.map((item) => {
                       const qty = cart[item.id] || 0;
+                      const price = getPrice(item.id, item.defaultPrice);
+                      
                       return (
                         <div key={item.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all duration-200 ${qty > 0 ? "bg-slate-900 border-rose-500/30 shadow-sm" : "bg-slate-950/50 border-slate-800/60"}`}>
                           <div className="flex-1 min-w-0 pr-4">
                             <div className="flex items-center justify-between mb-1">
                                <div className={`font-semibold text-sm ${qty > 0 ? "text-slate-100" : "text-slate-400"}`}>{item.name}</div>
-                               <div className="text-xs font-mono text-slate-500">{item.price}</div>
+                               <div className="text-xs font-mono text-slate-500">{price}</div>
                             </div>
                             <div className="flex gap-2 text-[10px] text-slate-500 uppercase">
                               <span className="bg-slate-900 px-1.5 rounded text-slate-400">{item.qty}</span>
@@ -212,7 +274,7 @@ const App = () => {
                     <AlertCircle size={16} className="text-amber-500" />
                     <div>
                       <div className="text-slate-200 font-medium text-sm">Refill Staples</div>
-                      <div className="text-xs text-slate-500">Rice, Oil, Honey, Spices</div>
+                      <div className="text-xs text-slate-500">Rice, Oil, Honey, Spices ({STAPLES.cost} EGP)</div>
                     </div>
                  </div>
                )}
@@ -229,7 +291,7 @@ const App = () => {
           </div>
         )}
 
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-50">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-40">
           <button 
             disabled={!canCheckout}
             onClick={() => setViewMode(viewMode === "plan" ? "list" : "plan")}
@@ -250,11 +312,13 @@ const App = () => {
             )}
           </button>
         </div>
+
       </div>
     </div>
   );
 };
 
+// Sub-components kept same as previous (StatCard, Logo, etc.)
 const StatCard = ({ icon, label, value, limit, unit, isCurrency }) => {
   let colorClass = "text-slate-400";
   if (isCurrency) {
