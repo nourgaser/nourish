@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, Save, Clock, Flame, Leaf, Plus, Trash2, Download, Upload, RotateCcw, Copy } from 'lucide-react';
+import { X, Save, Clock, Flame, Leaf, Plus, Trash2, Upload, RotateCcw, Copy } from 'lucide-react';
 import { DEFAULT_CATEGORIES, DEFAULT_CONFIG, STAPLES } from './data';
 
 export const Settings = ({ currentProfile, currentPrices, currentStaples, currentCategories, currentCart, onSave, onClose, onImport, onReset }) => {
@@ -65,6 +65,10 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
     try {
       const parsed = JSON.parse(importText);
       onImport(parsed);
+      setProfile(parsed.profile || { ...DEFAULT_CONFIG, name: '' });
+      setPrices(parsed.prices || {});
+      setStaples(parsed.staples || STAPLES);
+      setCategories(parsed.categories ? normalizeCategories(parsed.categories) : DEFAULT_CATEGORIES);
       setImportState({ type: 'success', message: 'Settings imported.' });
       setActiveTab('profile');
     } catch (err) {
@@ -165,6 +169,12 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
             className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'modules' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Modules
+          </button>
+          <button 
+            onClick={() => setActiveTab('backup')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'backup' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            Backup
           </button>
         </div>
 
@@ -466,6 +476,61 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
               >
                 <Plus size={18} /> Add category
               </button>
+            </div>
+          )}
+
+          {activeTab === 'backup' && (
+            <div className="space-y-4">
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Export all settings</h3>
+                    <p className="text-xs text-slate-500">Profile, prices, staples, modules, cart.</p>
+                  </div>
+                  <button onClick={copyExport} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 text-sm hover:border-indigo-400 flex items-center gap-2">
+                    <Copy size={14} /> Copy
+                  </button>
+                </div>
+                <textarea
+                  value={exportJson}
+                  readOnly
+                  className="w-full h-48 bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 font-mono resize-none"
+                />
+              </div>
+
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Import settings</h3>
+                    <p className="text-xs text-slate-500">Paste JSON to overwrite everything.</p>
+                  </div>
+                  <button onClick={handleImport} className="px-3 py-2 rounded-lg bg-indigo-500 text-white text-sm hover:bg-indigo-400 flex items-center gap-2">
+                    <Upload size={14} /> Import
+                  </button>
+                </div>
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder="Paste exported JSON here"
+                  className="w-full h-40 bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 font-mono focus:border-indigo-400 outline-none"
+                />
+              </div>
+
+              <div className="bg-rose-500/5 border border-rose-500/40 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-rose-100">Reset to defaults</h3>
+                  <p className="text-xs text-rose-200/80">Clears local data and reloads defaults.</p>
+                </div>
+                <button onClick={() => { if (window.confirm('Reset all settings to defaults?')) onReset(); }} className="px-3 py-2 rounded-lg border border-rose-400 text-rose-100 text-sm hover:bg-rose-500/10 flex items-center gap-2">
+                  <RotateCcw size={14} /> Reset
+                </button>
+              </div>
+
+              {importState && (
+                <div className={`text-xs font-semibold px-3 py-2 rounded border ${importState.type === 'success' ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/40' : 'text-rose-300 bg-rose-500/10 border-rose-500/40'}`}>
+                  {importState.message}
+                </div>
+              )}
             </div>
           )}
 

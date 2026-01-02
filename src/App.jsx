@@ -125,6 +125,40 @@ const App = () => {
     setIncludeStaples(normalizedProfile.autoIncludeStaples ?? false);
   };
 
+  const applyImportedSettings = (data) => {
+    const normalizedProfile = mergeProfileDefaults(data?.profile || {});
+    const nextCategories = data?.categories?.length ? data.categories : DEFAULT_CATEGORIES;
+    const staples = data?.staples || STAPLES;
+
+    const validIds = new Set(nextCategories.flatMap(cat => (cat.items || []).map(item => item.id)));
+    const cleanedPrices = Object.fromEntries(Object.entries(data?.prices || {}).filter(([id]) => validIds.has(id)));
+    const cleanedCart = Object.fromEntries(Object.entries(data?.cart || {}).filter(([id]) => validIds.has(id)));
+
+    setUserProfile(normalizedProfile);
+    setPriceOverrides(cleanedPrices);
+    setStaplesConfig(staples);
+    setCategories(nextCategories);
+    setCart(cleanedCart);
+    setIncludeStaples(normalizedProfile.autoIncludeStaples ?? false);
+    setViewMode("plan");
+  };
+
+  const resetAll = () => {
+    const defaultProfile = mergeProfileDefaults({});
+    setUserProfile(defaultProfile);
+    setPriceOverrides({});
+    setStaplesConfig(STAPLES);
+    setCategories(DEFAULT_CATEGORIES);
+    setCart({});
+    setIncludeStaples(defaultProfile.autoIncludeStaples ?? false);
+    setViewMode("plan");
+    localStorage.removeItem("nourish_profile");
+    localStorage.removeItem("nourish_prices");
+    localStorage.removeItem("nourish_cart_v3");
+    localStorage.removeItem("nourish_staples_v1");
+    localStorage.removeItem("nourish_categories_v1");
+  };
+
   const updateQuantity = (itemId, delta) => {
     setCart(prev => {
       const current = prev[itemId] || 0;
@@ -263,7 +297,10 @@ const App = () => {
           currentPrices={priceOverrides} 
           currentStaples={staplesConfig}
           currentCategories={categories}
+          currentCart={cart}
           onSave={handleSettingsSave}
+          onImport={applyImportedSettings}
+          onReset={resetAll}
           onClose={() => setShowSettings(false)}
         />
       )}
