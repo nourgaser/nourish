@@ -4,10 +4,10 @@ services:
     container_name: nourish-planner
     restart: unless-stopped
     environment:
-      - VIRTUAL_HOST=planner.lan,planner.nourgaser.com
+      - VIRTUAL_HOST=planner.lan,planner.nourgaser.com,nourish.nourgaser.com
       - VIRTUAL_PORT=80
-      - LETSENCRYPT_HOST=planner.nourgaser.com
-      - LETSENCRYPT_EMAIL=your@email.com
+      - LETSENCRYPT_HOST=planner.nourgaser.com,nourish.nourgaser.com
+      - LETSENCRYPT_EMAIL=me@nourgaser.com
     networks:
       - proxy-net
 
