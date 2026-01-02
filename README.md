@@ -1,8 +1,6 @@
-# 🛒 Seoudi Planner
+# 🛒 Nourish
 
-A minimalist, mobile-first web application designed to optimize weekly grocery runs at Seoudi Market (Cairo).
-
-It replaces mental math and rigid meal plans with a **modular decision-making framework**. The app ensures you hit your caloric/protein targets (for weight gain) and stay within budget (EGP), while accommodating specific dietary restrictions (IBS-friendly, Lactose-free).
+A minimalist, mobile-first grocery planner tuned for Seoudi Market (Cairo). It keeps you inside budget while hitting calorie/protein targets, and it is IBS-friendly by default.
 
 ---
 
@@ -57,43 +55,17 @@ npm run dev
 
 4. Open `http://localhost:5173` on your phone or desktop.
 
-## ⚙️ Configuration (`src/data.js`)
+## ⚙️ Settings-first configuration
 
-The core logic lives in `src/data.js`. This is where you adjust prices and nutritional data.
+You no longer have to edit source files to update prices or targets. Open the **Settings** tab (top of the app) to change:
 
-### 1. Global Settings
+- Budget per trip, trip length (days), daily calorie and protein targets.
+- Staples assumptions (cost, calories, protein) that are always added to daily averages.
+- Categories and items via a JSON editor (advanced). You can change min selections, prices, and add/remove items.
 
-Adjust your macro targets and spending limits here.
+All settings persist to `localStorage` under `nourish_settings_v1`. The cart persists under `nourish_cart_v3`.
 
-```javascript
-export const APP_CONFIG = {
-  budgetLimit: 750, // EGP per trip (Twice a week)
-  targetDailyCalories: 2700,
-  targetDailyProtein: 140, // Grams
-  tripDurationDays: 3.5, // Calculations based on half-week cycles
-};
-```
-
-### 2. Pantry Staples
-
-Items bought monthly (Rice, Oil, Honey) are defined here. Their _cost_ is excluded from the daily trip calculator, but their _calories_ are added to the daily average to give a realistic nutritional picture.
-
-### 3. Categories & Items
-
-To update the price of Chicken or add a new meal option, add an object to the `CATEGORIES` array:
-
-```javascript
-{
-  id: "new_item",
-  name: "New Item Name",
-  price: 150,       // Current price in EGP
-  calories: 500,    // Total calories for the PURCHASED UNIT
-  protein: 30,      // Total protein for the PURCHASED UNIT
-  ibsNote: "Warning or Safe note",
-  mealIdea: "Quick cooking instruction"
-}
-
-```
+If you prefer code-first defaults, edit `src/data.js` (`DEFAULT_APP_CONFIG`, `DEFAULT_STAPLES`, `DEFAULT_CATEGORIES`) and hit **Reset defaults** inside Settings to re-seed the UI.
 
 ## 📱 Usage Workflow
 
@@ -108,9 +80,9 @@ To update the price of Chicken or add a new meal option, add an object to the `C
 
 ## 📝 Roadmap
 
-- [ ] Add a "Staples Low" toggle to include Rice/Oil cost in the current trip if running out.
-- [ ] Dark mode support.
-- [ ] Persist selections to `localStorage`.
+- [ ] Quick import/export of Settings JSON.
+- [ ] Offline-first install (PWA) polish.
+- [ ] Basic analytics of spend vs macros over time.
 
 ## 📄 License
 
