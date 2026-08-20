@@ -1,16 +1,34 @@
 import React, { useState } from 'react';
 import { ChevronRight, User, Target, Wallet, Check } from 'lucide-react';
 import { Logo } from './Logo';
+import { DEFAULT_PROFILE, DEFAULT_TARGETS } from './data';
 
 export const Onboarding = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [data, setData] = useState({
     name: "",
-    budgetLimit: 750,
-    targetDailyCalories: 2700,
-    targetDailyProtein: 140,
-    ibsMode: true
+    budgetLimit: DEFAULT_PROFILE.budgetLimit,
+    tripDurationDays: DEFAULT_PROFILE.tripDurationDays,
+    ibsMode: DEFAULT_PROFILE.ibsMode,
+    // Onboarding only collects the two targets most people have an opinion
+    // on up front; everything else (fat/fiber/micros, personal context,
+    // diet notes) keeps its default and is editable later in Settings.
+    targets: {
+      ...DEFAULT_TARGETS,
+      kcal: { ...DEFAULT_TARGETS.kcal },
+      protein: { ...DEFAULT_TARGETS.protein },
+    },
   });
+
+  const setKcalTarget = (value) => {
+    const target = parseFloat(value) || 0;
+    setData(prev => ({ ...prev, targets: { ...prev.targets, kcal: { ...prev.targets.kcal, target } } }));
+  };
+
+  const setProteinFloor = (value) => {
+    const floor = parseFloat(value) || 0;
+    setData(prev => ({ ...prev, targets: { ...prev.targets, protein: { ...prev.targets.protein, floor } } }));
+  };
 
   const next = () => setStep(s => s + 1);
   const finish = () => onComplete(data);
@@ -79,11 +97,11 @@ export const Onboarding = ({ onComplete }) => {
                   <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500 mb-2">
                     <Target size={14} /> Daily Calories
                   </label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-white focus:border-rose-500 outline-none"
-                    value={data.targetDailyCalories}
-                    onChange={e => setData({...data, targetDailyCalories: parseFloat(e.target.value) || 0})}
+                    value={data.targets.kcal.target}
+                    onChange={e => setKcalTarget(e.target.value)}
                   />
                   <p className="text-[10px] text-slate-500 mt-1">Recommended for Bulking: 2700+</p>
                 </div>
@@ -92,11 +110,11 @@ export const Onboarding = ({ onComplete }) => {
                   <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500 mb-2">
                     <Target size={14} /> Daily Protein (g)
                   </label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-white focus:border-rose-500 outline-none"
-                    value={data.targetDailyProtein}
-                    onChange={e => setData({...data, targetDailyProtein: parseFloat(e.target.value) || 0})}
+                    value={data.targets.protein.floor}
+                    onChange={e => setProteinFloor(e.target.value)}
                   />
                 </div>
               </div>

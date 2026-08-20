@@ -4,23 +4,48 @@ import {
   RefreshCw, ChevronRight, AlertCircle, ShoppingCart, Trash2, CheckCircle2, XCircle,
   Settings as SettingsIcon, Sun, Moon
 } from "lucide-react";
-import { DEFAULT_CATEGORIES, DEFAULT_CONFIG, STAPLES } from "./data";
+import { DEFAULT_CATEGORIES, DEFAULT_PROFILE, DEFAULT_STAPLES, DEFAULT_TARGETS, DEFAULT_PERSONAL } from "./data";
+import {
+  NUTRIENT_KEYS,
+  aggregateNutrients,
+  aggregateCost,
+  staplesDailyNutrients,
+  staplesRestockCost,
+  resolvePrice,
+  interpolateInstruction,
+} from "./nutrition";
 import { Logo } from "./Logo";
 import { Onboarding } from "./Onboarding";
 import { Settings } from "./Settings";
+
+function mergeTargets(targets) {
+  const merged = {};
+  Object.keys(DEFAULT_TARGETS).forEach((key) => {
+    merged[key] = { ...DEFAULT_TARGETS[key], ...(targets?.[key] || {}) };
+  });
+  return merged;
+}
+
+// Biometric/context fields the app itself never reads (see DEFAULT_PERSONAL
+// in data.js) — still normalized like everything else so a partial import
+// doesn't drop fields an LLM/dietitian round-trip added.
+function mergePersonal(personal) {
+  return { ...DEFAULT_PERSONAL, ...(personal || {}) };
+}
 
 function mergeProfileDefaults(profile) {
   const normalized = profile || {};
   const {
     name = "",
-    budgetLimit = DEFAULT_CONFIG.budgetLimit,
-    targetDailyCalories = DEFAULT_CONFIG.targetDailyCalories,
-    targetDailyProtein = DEFAULT_CONFIG.targetDailyProtein,
-    tripDurationDays = DEFAULT_CONFIG.tripDurationDays,
+    budgetLimit = DEFAULT_PROFILE.budgetLimit,
+    tripDurationDays = DEFAULT_PROFILE.tripDurationDays,
     // TODO(phase3): ibsMode is persisted and toggleable in Settings but not yet
     // consumed by any rendering/sorting logic.
-    ibsMode = DEFAULT_CONFIG.ibsMode,
-    autoIncludeStaples = false,
+    ibsMode = DEFAULT_PROFILE.ibsMode,
+    autoIncludeStaples = DEFAULT_PROFILE.autoIncludeStaples,
+    targets,
+    personal,
+    dietNotes = DEFAULT_PROFILE.dietNotes,
     ...rest
   } = normalized;
 
@@ -29,9 +54,10 @@ function mergeProfileDefaults(profile) {
     ibsMode,
     autoIncludeStaples,
     budgetLimit: Number(budgetLimit),
-    targetDailyCalories: Number(targetDailyCalories),
-    targetDailyProtein: Number(targetDailyProtein),
     tripDurationDays: Number(tripDurationDays),
+    targets: mergeTargets(targets),
+    personal: mergePersonal(personal),
+    dietNotes,
     ...rest,
   };
 }
@@ -40,7 +66,7 @@ const App = () => {
   // --- GLOBAL STATE ---
   const [userProfile, setUserProfile] = useState(null);
   const [priceOverrides, setPriceOverrides] = useState({});
-  const [staplesConfig, setStaplesConfig] = useState(STAPLES);
+  const [staplesConfig, setStaplesConfig] = useState(DEFAULT_STAPLES);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [cart, setCart] = useState({});
   const [theme, setTheme] = useState(() => {
@@ -52,10 +78,10 @@ const App = () => {
     document.documentElement.dataset.theme = initial;
     return initial;
   });
-  
+
   // --- UI STATE ---
   const [includeStaples, setIncludeStaples] = useState(false);
-  const [viewMode, setViewMode] = useState("plan"); 
+  const [viewMode, setViewMode] = useState("plan");
   const [showSettings, setShowSettings] = useState(false);
 
   // Prevent background scroll when overlays are open
@@ -70,13 +96,18 @@ const App = () => {
   }, [showSettings]);
 
   // --- PERSISTENCE ---
+  // Key names carry a _v2 suffix because the value shapes changed (prices
+  // gained {value, updatedAt}; staples became a daily-rate item list;
+  // profile targets became a nested object) — this is just so any leftover
+  // dev-testing data in this browser's localStorage doesn't get loaded into
+  // the new shape and crash the app, not a migration system.
   useEffect(() => {
     // Load all data on mount
-    const savedProfile = localStorage.getItem("nourish_profile");
-    const savedPrices = localStorage.getItem("nourish_prices");
+    const savedProfile = localStorage.getItem("nourish_profile_v2");
+    const savedPrices = localStorage.getItem("nourish_prices_v2");
     const savedCart = localStorage.getItem("nourish_cart_v3");
-    const savedStaples = localStorage.getItem("nourish_staples_v1");
-    const savedCategories = localStorage.getItem("nourish_categories_v1");
+    const savedStaples = localStorage.getItem("nourish_staples_v2");
+    const savedCategories = localStorage.getItem("nourish_categories_v2");
 
     if (savedProfile) setUserProfile(mergeProfileDefaults(JSON.parse(savedProfile)));
     if (savedPrices) setPriceOverrides(JSON.parse(savedPrices));
@@ -87,11 +118,11 @@ const App = () => {
 
   // Save on change
   useEffect(() => {
-    if (userProfile) localStorage.setItem("nourish_profile", JSON.stringify(userProfile));
+    if (userProfile) localStorage.setItem("nourish_profile_v2", JSON.stringify(userProfile));
   }, [userProfile]);
 
   useEffect(() => {
-    localStorage.setItem("nourish_prices", JSON.stringify(priceOverrides));
+    localStorage.setItem("nourish_prices_v2", JSON.stringify(priceOverrides));
   }, [priceOverrides]);
 
   useEffect(() => {
@@ -99,11 +130,11 @@ const App = () => {
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem("nourish_staples_v1", JSON.stringify(staplesConfig));
+    localStorage.setItem("nourish_staples_v2", JSON.stringify(staplesConfig));
   }, [staplesConfig]);
 
   useEffect(() => {
-    localStorage.setItem("nourish_categories_v1", JSON.stringify(categories));
+    localStorage.setItem("nourish_categories_v2", JSON.stringify(categories));
   }, [categories]);
 
   useEffect(() => {
@@ -164,7 +195,7 @@ const App = () => {
   const applyImportedSettings = (data) => {
     const normalizedProfile = mergeProfileDefaults(data?.profile || {});
     const nextCategories = data?.categories?.length ? data.categories : DEFAULT_CATEGORIES;
-    const staples = data?.staples || STAPLES;
+    const staples = data?.staples || DEFAULT_STAPLES;
 
     const validIds = new Set(nextCategories.flatMap(cat => (cat.items || []).map(item => item.id)));
     const cleanedPrices = Object.fromEntries(Object.entries(data?.prices || {}).filter(([id]) => validIds.has(id)));
@@ -183,17 +214,17 @@ const App = () => {
     const defaultProfile = mergeProfileDefaults({});
     setUserProfile(defaultProfile);
     setPriceOverrides({});
-    setStaplesConfig(STAPLES);
+    setStaplesConfig(DEFAULT_STAPLES);
     setCategories(DEFAULT_CATEGORIES);
     setCart({});
     setIncludeStaples(defaultProfile.autoIncludeStaples ?? false);
     setViewMode("plan");
     setTheme("dark");
-    localStorage.removeItem("nourish_profile");
-    localStorage.removeItem("nourish_prices");
+    localStorage.removeItem("nourish_profile_v2");
+    localStorage.removeItem("nourish_prices_v2");
     localStorage.removeItem("nourish_cart_v3");
-    localStorage.removeItem("nourish_staples_v1");
-    localStorage.removeItem("nourish_categories_v1");
+    localStorage.removeItem("nourish_staples_v2");
+    localStorage.removeItem("nourish_categories_v2");
   };
 
   const updateQuantity = (itemId, delta) => {
@@ -238,11 +269,6 @@ const App = () => {
     }
   };
 
-  // --- HELPER: Get Price ---
-  const getPrice = (itemId, defaultPrice) => {
-    return priceOverrides[itemId] !== undefined ? priceOverrides[itemId] : defaultPrice;
-  };
-
   // --- CALCULATIONS ---
   useEffect(() => {
     if (userProfile?.autoIncludeStaples !== undefined) {
@@ -253,14 +279,12 @@ const App = () => {
   const stats = useMemo(() => {
     if (!userProfile) return null;
 
-    let tripCost = 0;
-    let tripCals = 0;
-    let tripProtein = 0;
-    let totalItems = 0;
+    const entries = [];
     // Distinct items with qty > 0, per module — what minSelection counts against.
     const categoryCounts = {};
     // Raw quantity totals, kept separately for any UI that wants them.
     const categoryQuantities = {};
+    let totalItems = 0;
 
     categories.forEach(c => { categoryCounts[c.id] = 0; categoryQuantities[c.id] = 0; });
 
@@ -268,10 +292,7 @@ const App = () => {
       cat.items.forEach(item => {
         const qty = cart[item.id] || 0;
         if (qty > 0) {
-          const currentPrice = getPrice(item.id, item.defaultPrice);
-          tripCost += currentPrice * qty;
-          tripCals += item.calories * qty;
-          tripProtein += item.protein * qty;
+          entries.push({ item, qty });
           totalItems += qty;
           categoryCounts[cat.id] += 1;
           categoryQuantities[cat.id] += qty;
@@ -279,15 +300,36 @@ const App = () => {
       });
     });
 
-    const staples = staplesConfig || STAPLES;
-    const tripDuration = Math.max(1, userProfile.tripDurationDays || DEFAULT_CONFIG.tripDurationDays);
-    const finalCost = includeStaples ? tripCost + staples.cost : tripCost;
-    const stapleCals = includeStaples ? staples.calories : 0;
-    const stapleProtein = includeStaples ? staples.protein : 0;
-    const dailyCals = (tripCals + stapleCals) / tripDuration;
-    const dailyProtein = (tripProtein + stapleProtein) / tripDuration;
+    const tripNutrients = aggregateNutrients(entries);
+    const tripCostResult = aggregateCost(entries, priceOverrides);
 
-    return { finalCost, dailyCals, dailyProtein, totalItems, categoryCounts, categoryQuantities };
+    const staples = staplesConfig || DEFAULT_STAPLES;
+    // Staples nutrition is a daily consumption baseline (you eat rice/oil
+    // most days of the trip regardless of whether you're restocking today),
+    // so it's always included and never divided by trip duration — see
+    // nutrition.js `staplesDailyNutrients`. Only the restock *cost* is
+    // trip-scoped and gated by the includeStaples toggle.
+    const staplesDaily = staplesDailyNutrients(staples);
+    const restockCost = includeStaples
+      ? staplesRestockCost(staples, priceOverrides)
+      : { value: 0, complete: true };
+
+    const tripDuration = Math.max(1, userProfile.tripDurationDays || DEFAULT_PROFILE.tripDurationDays);
+
+    const dailyNutrients = {};
+    NUTRIENT_KEYS.forEach((key) => {
+      const trip = tripNutrients[key];
+      const daily = staplesDaily[key];
+      dailyNutrients[key] = {
+        value: trip.value / tripDuration + daily.value,
+        complete: trip.complete && daily.complete,
+      };
+    });
+
+    const finalCost = tripCostResult.value + restockCost.value;
+    const costComplete = tripCostResult.complete && restockCost.complete;
+
+    return { finalCost, costComplete, dailyNutrients, totalItems, categoryCounts, categoryQuantities };
   }, [cart, includeStaples, userProfile, priceOverrides, staplesConfig, categories]);
 
 
@@ -297,9 +339,22 @@ const App = () => {
   }
 
   // --- ADVISOR LOGIC ---
+  // Stopgap single-message advisor for Phase 1 — Phase 2 replaces this with
+  // a rule engine returning a sorted list of findings. This version exists
+  // only to satisfy Phase 1's own bar: never report zeros for unknown data.
   const getSmartAdvice = () => {
-    const staples = staplesConfig || STAPLES;
-    const budgetLimit = userProfile.budgetLimit + (includeStaples ? staples.cost : 0);
+    if (!stats.costComplete) {
+      return { type: 'info', text: "Some prices are still unknown — cost total is a partial figure." };
+    }
+
+    const staples = staplesConfig || DEFAULT_STAPLES;
+    // Restock cost is added to both spend and the limit here — deliberate,
+    // existing behavior: staples restocking is treated as a separate,
+    // always-affordable pantry expense outside the discretionary trip
+    // budget, not a fix Phase 0 was asked to make. Net effect: toggling it
+    // on doesn't change whether the trip itself is judged over budget.
+    const restockCost = includeStaples ? staplesRestockCost(staples, priceOverrides).value : 0;
+    const budgetLimit = userProfile.budgetLimit + restockCost;
     const budgetGrace = 50;
     const overBudget = Math.round(stats.finalCost - budgetLimit);
 
@@ -309,7 +364,7 @@ const App = () => {
     if (overBudget > 0) {
       return { type: 'warn', text: `Over budget by ${overBudget} EGP but within the ${budgetGrace} EGP buffer.` };
     }
-    
+
     // Category Mins
     for (const cat of categories) {
       if (stats.categoryCounts[cat.id] < cat.minSelection) {
@@ -317,12 +372,15 @@ const App = () => {
       }
     }
 
-    // Macros
-    if (stats.dailyCals < userProfile.targetDailyCalories - 200) {
-      return { type: 'warn', text: `Low Calories (${Math.round(stats.dailyCals)}). Goal: ${userProfile.targetDailyCalories}.` };
+    // Macros — floors are now explicit editable targets, not a hidden buffer.
+    if (!stats.dailyNutrients.kcal.complete || !stats.dailyNutrients.protein.complete) {
+      return { type: 'info', text: "Nutrition data is incomplete for items in your cart — add per-100g values to get real advice." };
     }
-    if (stats.dailyProtein < userProfile.targetDailyProtein - 10) {
-      return { type: 'warn', text: `Low Protein. Goal: ${userProfile.targetDailyProtein}g.` };
+    if (stats.dailyNutrients.kcal.value < userProfile.targets.kcal.floor) {
+      return { type: 'warn', text: `Low Calories (${Math.round(stats.dailyNutrients.kcal.value)}). Goal: ${userProfile.targets.kcal.target}.` };
+    }
+    if (stats.dailyNutrients.protein.value < userProfile.targets.protein.floor) {
+      return { type: 'warn', text: `Low Protein. Goal: ${userProfile.targets.protein.floor}g+.` };
     }
 
     return { type: 'success', text: "Plan looks solid. Ready to shop." };
@@ -333,6 +391,7 @@ const App = () => {
   const bannerTone = (tone) => {
     if (tone === 'error') return theme === "dark" ? "bg-rose-500/10 border-rose-500/50 text-rose-200" : "bg-rose-50 border-rose-200 text-rose-800";
     if (tone === 'warn') return theme === "dark" ? "bg-amber-500/10 border-amber-500/50 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-800";
+    if (tone === 'info') return theme === "dark" ? "bg-sky-500/10 border-sky-500/50 text-sky-200" : "bg-sky-50 border-sky-200 text-sky-800";
     return theme === "dark" ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-200" : "bg-emerald-50 border-emerald-200 text-emerald-800";
   };
 
@@ -345,11 +404,11 @@ const App = () => {
 
   return (
     <div className={`min-h-screen font-sans selection:bg-rose-500/25 ${theme === "dark" ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"}`}>
-      
+
       {showSettings && (
-        <Settings 
-          currentProfile={userProfile} 
-          currentPrices={priceOverrides} 
+        <Settings
+          currentProfile={userProfile}
+          currentPrices={priceOverrides}
           currentStaples={staplesConfig}
           currentCategories={categories}
           currentCart={cart}
@@ -363,7 +422,7 @@ const App = () => {
       )}
 
       <div className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-6 pb-32 sm:max-w-xl">
-        
+
         {/* HEADER */}
         <header className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -394,24 +453,26 @@ const App = () => {
 
         {/* SMART ADVISOR BANNER */}
         <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 transition-colors duration-300 ${bannerTone(advice.type)}`}>
-           {advice.type === 'error' ? <XCircle className="shrink-0 mt-0.5" size={18} /> : 
-            advice.type === 'warn' ? <AlertCircle className="shrink-0 mt-0.5" size={18} /> : 
+           {advice.type === 'error' ? <XCircle className="shrink-0 mt-0.5" size={18} /> :
+            advice.type === 'warn' ? <AlertCircle className="shrink-0 mt-0.5" size={18} /> :
             <CheckCircle2 className="shrink-0 mt-0.5" size={18} />}
            <div className="text-sm font-medium leading-tight">{advice.text}</div>
         </div>
 
         {/* STATS */}
         <section className="grid grid-cols-3 gap-3 mb-6">
-          <StatCard theme={theme} icon={<Wallet size={16} />} label="Cost" value={Math.round(stats.finalCost)} limit={userProfile.budgetLimit} unit="EGP" isCurrency />
-          <StatCard theme={theme} icon={<Activity size={16} />} label="Cals" value={Math.round(stats.dailyCals)} limit={userProfile.targetDailyCalories} unit="" />
-          <StatCard theme={theme} icon={<ShoppingBag size={16} />} label="Prot" value={Math.round(stats.dailyProtein)} limit={userProfile.targetDailyProtein} unit="g" />
+          <StatCard theme={theme} icon={<Wallet size={16} />} label="Cost" value={stats.finalCost} known={stats.costComplete} limit={userProfile.budgetLimit} unit="EGP" isCurrency />
+          <StatCard theme={theme} icon={<Activity size={16} />} label="Cals" value={stats.dailyNutrients.kcal.value} known={stats.dailyNutrients.kcal.complete} limit={userProfile.targets.kcal.target} unit="" />
+          <StatCard theme={theme} icon={<ShoppingBag size={16} />} label="Prot" value={stats.dailyNutrients.protein.value} known={stats.dailyNutrients.protein.complete} limit={userProfile.targets.protein.floor} unit="g" />
         </section>
 
         {/* STAPLES TOGGLE */}
         <div className={`flex items-center justify-between p-3 rounded-xl mb-6 ${surfaceMuted}`}>
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${includeStaples ? 'bg-amber-500' : 'bg-slate-400'}`} />
-            <span className={`text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>Refill Staples? <span className={`text-xs ${textMuted}`}>(Rice/Oil/Honey)</span></span>
+            <span className={`text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>
+              Restocking staples this trip? <span className={`text-xs ${textMuted}`}>(Rice/Oil/Honey — cost only; the daily macros above always include them)</span>
+            </span>
           </div>
           <button onClick={() => setIncludeStaples(!includeStaples)} className={`w-10 h-6 flex items-center rounded-full px-1 transition-colors ${includeStaples ? 'bg-amber-500' : theme === "dark" ? 'bg-slate-700' : 'bg-slate-300'}`}>
             <div className={`w-4 h-4 bg-white rounded-full transition-transform ${includeStaples ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -432,33 +493,34 @@ const App = () => {
                       <h2 className={`text-xs font-bold uppercase tracking-widest ${isSatisfied ? "text-emerald-500" : textSubtle}`}>
                         {cat.title}
                       </h2>
-                      <p className={`text-[10px] mt-0.5 ${textMuted}`}>{cat.instruction}</p>
+                      <p className={`text-[10px] mt-0.5 ${textMuted}`}>{interpolateInstruction(cat.instruction, userProfile.tripDurationDays)}</p>
                     </div>
                     <div className={`px-2 py-1 rounded text-[10px] font-mono border ${isSatisfied ? (theme === "dark" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-600") : (theme === "dark" ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-500")}`}>
                       {currentCount} / {cat.minSelection}
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 gap-3">
                     {cat.items.map((item) => {
                       const qty = cart[item.id] || 0;
-                      const price = getPrice(item.id, item.defaultPrice);
-                      
+                      const price = resolvePrice(item, priceOverrides);
+
                         return (
                           <div key={item.id} className="flex items-center gap-3">
-                            <div 
+                            <div
                               onClick={(e) => handleCardTap(e, item.id)}
                               className={`flex-1 p-3 rounded-2xl border transition-all duration-200 cursor-pointer ripple-card ${qty > 0 ? (theme === "dark" ? "bg-slate-900 border-rose-500/30 shadow-sm" : "bg-rose-50 border-rose-200 shadow-sm") : panelStrong}`}
                             >
                               <div className="flex items-center justify-between mb-1">
                                 <div className={`font-semibold text-sm ${qty > 0 ? (theme === "dark" ? "text-slate-100" : "text-slate-900") : textSubtle}`}>{item.name}</div>
-                                <div className={`text-xs font-mono ${textMuted}`}>{Math.round(price)}</div>
+                                <div className={`text-xs font-mono ${textMuted}`}>{price == null ? "—" : Math.round(price)}</div>
                               </div>
                               {/* TODO(phase3): item.tags exists in the data model but is never rendered here. */}
                               <div className={`flex gap-2 text-[10px] uppercase ${textMuted}`}>
                                 <span className={`px-1.5 rounded ${chipMuted}`}>{item.qty}</span>
                               </div>
                             </div>
+                            {/* TODO(phase3): divisible:false items should force integer qty and drop step="0.1". */}
                             <div className={`flex items-center gap-2 rounded-xl p-1 ${qty > 0 ? (theme === "dark" ? 'bg-slate-800' : 'bg-slate-100 border border-slate-200') : (theme === "dark" ? 'bg-slate-900 border border-slate-800' : 'bg-slate-100 border border-slate-200')}`}>
                               <button onClick={() => updateQuantity(item.id, -1)} className={`w-8 h-8 flex items-center justify-center rounded-lg ${qty > 0 ? (theme === "dark" ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-200 text-slate-700') : 'text-slate-400 pointer-events-none'}`}>
                                 {qty === 1 ? <Trash2 size={14} /> : <Minus size={14} />}
@@ -486,15 +548,22 @@ const App = () => {
           <div className="space-y-4 animate-in slide-in-from-right duration-300">
              <div className={`${theme === "dark" ? "bg-slate-900/50 border-rose-500/20" : "bg-rose-50 border-rose-200"} p-6 rounded-2xl border text-center shadow-lg`}>
                 <h3 className={`text-xl font-bold mb-1 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Shopping List</h3>
-                <p className={`font-mono text-lg ${theme === "dark" ? "text-rose-300" : "text-rose-600"}`}>{Math.round(stats.finalCost)} EGP <span className={`${textMuted} text-sm`}>approx</span></p>
+                <p className={`font-mono text-lg ${theme === "dark" ? "text-rose-300" : "text-rose-600"}`}>{stats.costComplete ? `${Math.round(stats.finalCost)} EGP` : "— EGP"} <span className={`${textMuted} text-sm`}>approx</span></p>
              </div>
              <div className={`${theme === "dark" ? "bg-slate-900 border-slate-800 divide-slate-800/50" : "bg-white border-slate-200 divide-slate-200/70"} rounded-2xl border divide-y`}>
                {includeStaples && (
                  <div className={`${theme === "dark" ? "bg-amber-500/5" : "bg-amber-50"} p-4 flex items-center gap-3`}>
                     <AlertCircle size={16} className={theme === "dark" ? "text-amber-500" : "text-amber-600"} />
                     <div>
-                      <div className={`font-medium text-sm ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>Refill Staples</div>
-                      <div className={`text-xs ${textMuted}`}>Rice, Oil, Honey, Spices ({Math.round(staplesConfig.cost)} EGP)</div>
+                      <div className={`font-medium text-sm ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>Restock Staples</div>
+                      {(() => {
+                        const restock = staplesRestockCost(staplesConfig, priceOverrides);
+                        return (
+                          <div className={`text-xs ${textMuted}`}>
+                            Rice, Oil, Honey, Spices ({restock.complete ? `${Math.round(restock.value)} EGP` : "price unknown"})
+                          </div>
+                        );
+                      })()}
                     </div>
                  </div>
                )}
@@ -512,11 +581,11 @@ const App = () => {
         )}
 
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-40">
-          <button 
+          <button
             disabled={!canCheckout}
             onClick={() => setViewMode(viewMode === "plan" ? "list" : "plan")}
             className={`w-full h-14 rounded-2xl font-bold text-base shadow-2xl flex items-center justify-center gap-2 transition-all transform active:scale-95
-              ${!canCheckout 
+              ${!canCheckout
                 ? (theme === "dark" ? "bg-slate-800 text-slate-500 opacity-80" : "bg-slate-200 text-slate-500 opacity-80")
                 : "bg-rose-600 text-white hover:bg-rose-500 shadow-rose-900/40"
               }`}
@@ -539,12 +608,14 @@ const App = () => {
 };
 
 // Sub-components kept same as previous (StatCard, Logo, etc.)
-const StatCard = ({ icon, label, value, limit, unit, isCurrency, theme = "dark" }) => {
+const StatCard = ({ icon, label, value, known = true, limit, unit, isCurrency, theme = "dark" }) => {
   let colorClass = "text-slate-400";
-  if (isCurrency) {
+  if (!known) {
+    colorClass = "text-slate-500";
+  } else if (isCurrency) {
     colorClass = value > limit ? "text-rose-400" : "text-emerald-400";
   } else {
-    const ratio = value / limit;
+    const ratio = limit ? value / limit : 0;
     if (ratio >= 0.95) colorClass = "text-emerald-400";
     else if (ratio >= 0.75) colorClass = "text-amber-400";
     else colorClass = "text-rose-400";
@@ -552,7 +623,7 @@ const StatCard = ({ icon, label, value, limit, unit, isCurrency, theme = "dark" 
   return (
     <div className={`p-3 rounded-2xl border flex flex-col items-center justify-center text-center shadow-sm ${theme === "dark" ? "bg-slate-900/60 border-slate-800/60" : "bg-white border-slate-200"}`}>
       <div className="text-slate-500 mb-1.5 opacity-80">{icon}</div>
-      <div className={`text-lg font-bold leading-none mb-1 ${colorClass}`}>{value}</div>
+      <div className={`text-lg font-bold leading-none mb-1 ${colorClass}`}>{known ? Math.round(value) : "—"}</div>
       <div className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">{label}</div>
     </div>
   );
