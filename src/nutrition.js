@@ -42,6 +42,10 @@ export function packNutrient(item, key) {
 // keeps the null-propagation logic in exactly one place.
 
 function partNutrient(part, key) {
+  // 0 grams of anything contributes 0 of every nutrient — true regardless
+  // of whether that food's composition is known, so this checks before the
+  // per100g lookup rather than after.
+  if (part.grams === 0) return 0;
   const per100 = part.per100g?.[key];
   if (per100 == null || part.grams == null) return null;
   return (per100 * part.grams) / 100;
@@ -97,10 +101,19 @@ export function aggregateNutrients(entries) {
 // this reads `gramsPerDay` directly (no packGrams/qty involved) and returns
 // an already-daily figure — callers must NOT divide it by trip duration, and
 // must NOT gate it behind the "restocking this trip?" cost toggle.
+//
+// Unlike per100g/price (real-world facts that are either known or not),
+// `gramsPerDay` is a planning input the user supplies about themselves —
+// closer to tripDurationDays than to a food-composition lookup. So an unset
+// value defaults to 0 ("not counted yet"), not null ("unknown"): otherwise
+// every staple you haven't gotten around to configuring — which is all of
+// them, out of the box — would permanently block the entire daily nutrient
+// panel even when your cart items are fully known. A partially-filled
+// staple (grams set, composition still null) is still correctly incomplete.
 export function staplesDailyNutrients(staples) {
   const parts = (staples?.items || []).map((item) => ({
     per100g: item.per100g,
-    grams: item.gramsPerDay ?? null,
+    grams: item.gramsPerDay ?? 0,
   }));
   return aggregateParts(parts);
 }

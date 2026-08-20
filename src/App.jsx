@@ -1,6 +1,6 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
-  Activity, ShoppingBag, Wallet, Minus, Plus,
+  Wallet, Minus, Plus, Flag, Clock,
   RefreshCw, ChevronRight, ChevronDown, ChevronUp, AlertCircle, Info, ShoppingCart, Trash2, CheckCircle2, XCircle,
   Settings as SettingsIcon, Sun, Moon
 } from "lucide-react";
@@ -13,8 +13,10 @@ import {
   staplesRestockCost,
   resolvePrice,
   interpolateInstruction,
+  valuePerCurrency,
+  isPriceStale,
 } from "./nutrition";
-import { evaluateBasket, canCheckout as advisorCanCheckout } from "./advisor";
+import { evaluateBasket, canCheckout as advisorCanCheckout, MICRO_KEYS, MICRO_TARGET_RATIO } from "./advisor";
 import { Logo } from "./Logo";
 import { Onboarding } from "./Onboarding";
 import { Settings } from "./Settings";
@@ -34,14 +36,30 @@ function mergePersonal(personal) {
   return { ...DEFAULT_PERSONAL, ...(personal || {}) };
 }
 
+// Reads and parses a localStorage key, returning null on absence or
+// corruption. Used only inside lazy useState initializers below — loading
+// persisted state synchronously at that point (rather than via a mount
+// effect) avoids a real race: an effect that loads state and separate
+// per-key effects that save it will, on the very first render, run with
+// the pre-load closure and overwrite the just-loaded value with the
+// initial default. React 18 StrictMode's dev-only double-invoke of effects
+// turns that race into a guaranteed data loss on every reload.
+function readLocalStorage(key) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 function mergeProfileDefaults(profile) {
   const normalized = profile || {};
   const {
     name = "",
     budgetLimit = DEFAULT_PROFILE.budgetLimit,
     tripDurationDays = DEFAULT_PROFILE.tripDurationDays,
-    // TODO(phase3): ibsMode is persisted and toggleable in Settings but not yet
-    // consumed by any rendering/sorting logic.
     ibsMode = DEFAULT_PROFILE.ibsMode,
     autoIncludeStaples = DEFAULT_PROFILE.autoIncludeStaples,
     targets,
@@ -65,11 +83,16 @@ function mergeProfileDefaults(profile) {
 
 const App = () => {
   // --- GLOBAL STATE ---
-  const [userProfile, setUserProfile] = useState(null);
-  const [priceOverrides, setPriceOverrides] = useState({});
-  const [staplesConfig, setStaplesConfig] = useState(DEFAULT_STAPLES);
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
-  const [cart, setCart] = useState({});
+  // Loaded synchronously from localStorage on first render (see
+  // readLocalStorage above) rather than via a mount effect + setState.
+  const [userProfile, setUserProfile] = useState(() => {
+    const saved = readLocalStorage("nourish_profile_v2");
+    return saved ? mergeProfileDefaults(saved) : null;
+  });
+  const [priceOverrides, setPriceOverrides] = useState(() => readLocalStorage("nourish_prices_v2") || {});
+  const [staplesConfig, setStaplesConfig] = useState(() => readLocalStorage("nourish_staples_v2") || DEFAULT_STAPLES);
+  const [categories, setCategories] = useState(() => readLocalStorage("nourish_categories_v2") || DEFAULT_CATEGORIES);
+  const [cart, setCart] = useState(() => readLocalStorage("nourish_cart_v3") || {});
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined") return "dark";
     const saved = localStorage.getItem("nourish_theme");
@@ -81,10 +104,11 @@ const App = () => {
   });
 
   // --- UI STATE ---
-  const [includeStaples, setIncludeStaples] = useState(false);
+  const [includeStaples, setIncludeStaples] = useState(() => userProfile?.autoIncludeStaples ?? false);
   const [viewMode, setViewMode] = useState("plan");
   const [showSettings, setShowSettings] = useState(false);
   const [showAllFindings, setShowAllFindings] = useState(false);
+  const [showMicroDetail, setShowMicroDetail] = useState(false);
 
   // Prevent background scroll when overlays are open
   useEffect(() => {
@@ -103,22 +127,16 @@ const App = () => {
   // profile targets became a nested object) — this is just so any leftover
   // dev-testing data in this browser's localStorage doesn't get loaded into
   // the new shape and crash the app, not a migration system.
-  useEffect(() => {
-    // Load all data on mount
-    const savedProfile = localStorage.getItem("nourish_profile_v2");
-    const savedPrices = localStorage.getItem("nourish_prices_v2");
-    const savedCart = localStorage.getItem("nourish_cart_v3");
-    const savedStaples = localStorage.getItem("nourish_staples_v2");
-    const savedCategories = localStorage.getItem("nourish_categories_v2");
-
-    if (savedProfile) setUserProfile(mergeProfileDefaults(JSON.parse(savedProfile)));
-    if (savedPrices) setPriceOverrides(JSON.parse(savedPrices));
-    if (savedCart) setCart(JSON.parse(savedCart));
-    if (savedStaples) setStaplesConfig(JSON.parse(savedStaples));
-    if (savedCategories) setCategories(JSON.parse(savedCategories));
-  }, []);
-
-  // Save on change
+  //
+  // Loading happens synchronously in the useState initializers above, not
+  // here — a separate mount-effect-that-loads plus these per-key
+  // effects-that-save used to race (the save effects' first run captures
+  // the pre-load default and overwrites whatever was just loaded), which
+  // React 18 StrictMode's dev-only double-invoke of effects turned into a
+  // guaranteed data loss on every reload. cart/priceOverrides staying
+  // consistent with categories is handled at the point categories actually
+  // change (handleSettingsSave / applyImportedSettings below), not via a
+  // separate reconciliation effect.
   useEffect(() => {
     if (userProfile) localStorage.setItem("nourish_profile_v2", JSON.stringify(userProfile));
   }, [userProfile]);
@@ -143,33 +161,6 @@ const App = () => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("nourish_theme", theme);
   }, [theme]);
-
-  const didMountCategoryFilter = useRef(false);
-  useEffect(() => {
-    // Skip the run that fires immediately after mount: at that point `categories`
-    // still holds its initial-render value, so filtering here would validate a
-    // freshly-loaded cart/priceOverrides against the wrong (stale) item set.
-    if (!didMountCategoryFilter.current) {
-      didMountCategoryFilter.current = true;
-      return;
-    }
-    const validIds = new Set(categories.flatMap(cat => (cat.items || []).map(item => item.id)));
-    setCart(prev => {
-      const next = {};
-      Object.entries(prev).forEach(([id, qty]) => {
-        if (validIds.has(id)) next[id] = qty;
-      });
-      return next;
-    });
-    setPriceOverrides(prev => {
-      const next = {};
-      Object.entries(prev).forEach(([id, price]) => {
-        if (validIds.has(id)) next[id] = price;
-      });
-      return next;
-    });
-  }, [categories]);
-
 
   // --- HANDLERS ---
   const handleOnboardingComplete = (data) => {
@@ -272,12 +263,6 @@ const App = () => {
   };
 
   // --- CALCULATIONS ---
-  useEffect(() => {
-    if (userProfile?.autoIncludeStaples !== undefined) {
-      setIncludeStaples(userProfile.autoIncludeStaples);
-    }
-  }, [userProfile]);
-
   const stats = useMemo(() => {
     if (!userProfile) return null;
 
@@ -463,12 +448,69 @@ const App = () => {
           )}
         </div>
 
-        {/* STATS */}
-        <section className="grid grid-cols-3 gap-3 mb-6">
-          <StatCard theme={theme} icon={<Wallet size={16} />} label="Cost" value={stats.finalCost} known={stats.costComplete} limit={userProfile.budgetLimit} unit="EGP" isCurrency />
-          <StatCard theme={theme} icon={<Activity size={16} />} label="Cals" value={stats.dailyNutrients.kcal.value} known={stats.dailyNutrients.kcal.complete} limit={userProfile.targets.kcal.target} unit="" />
-          <StatCard theme={theme} icon={<ShoppingBag size={16} />} label="Prot" value={stats.dailyNutrients.protein.value} known={stats.dailyNutrients.protein.complete} limit={userProfile.targets.protein.floor} unit="g" />
+        {/* COST */}
+        <div className={`flex items-center justify-between p-3 rounded-xl border mb-3 ${surfaceCard}`}>
+          <div className="flex items-center gap-2">
+            <Wallet size={16} className="text-slate-500" />
+            <span className={`text-xs font-medium uppercase tracking-widest ${textMuted}`}>Cost</span>
+          </div>
+          <div className={`text-base font-bold ${!stats.costComplete ? "text-slate-500" : stats.finalCost > userProfile.budgetLimit ? "text-rose-400" : "text-emerald-400"}`}>
+            {stats.costComplete ? `${Math.round(stats.finalCost)} EGP` : "—"}
+            <span className={`text-xs font-normal ml-1 ${textMuted}`}>/ {userProfile.budgetLimit}</span>
+          </div>
+        </div>
+
+        {/* NUTRIENT PANEL — kcal/protein/fat/carbs/fiber as primary, plus a
+            single collapsed Micros tile (n/11 on target) that expands into
+            per-nutrient coverage bars. Colored by distance from floor. */}
+        <section className={`grid grid-cols-3 gap-2 ${showMicroDetail ? "mb-3" : "mb-6"}`}>
+          {[
+            { key: "kcal", label: "Kcal", unit: "" },
+            { key: "protein", label: "Protein", unit: "g" },
+            { key: "fat", label: "Fat", unit: "g" },
+            { key: "carbs", label: "Carbs", unit: "g" },
+            { key: "fiber", label: "Fiber", unit: "g" },
+          ].map(({ key, label, unit }) => {
+            const daily = stats.dailyNutrients[key];
+            const target = userProfile.targets[key] || {};
+            return (
+              <MacroTile
+                key={key} theme={theme} label={label} unit={unit}
+                value={daily.value} complete={daily.complete}
+                floor={target.floor} ceiling={target.ceiling}
+              />
+            );
+          })}
+          <MicroTile
+            theme={theme}
+            dailyNutrients={stats.dailyNutrients}
+            targets={userProfile.targets}
+            expanded={showMicroDetail}
+            onToggle={() => setShowMicroDetail(s => !s)}
+          />
         </section>
+
+        {showMicroDetail && (
+          <div className={`mb-6 p-3 rounded-xl border space-y-2 ${panelStrong}`}>
+            {MICRO_KEYS.map((key) => {
+              const daily = stats.dailyNutrients[key];
+              const floor = userProfile.targets[key]?.floor;
+              const pct = daily.complete && floor ? Math.min(100, (daily.value / floor) * 100) : 0;
+              const barColor = !daily.complete
+                ? "bg-slate-600"
+                : pct >= 100 ? "bg-emerald-500" : pct >= MICRO_TARGET_RATIO * 100 ? "bg-amber-500" : "bg-rose-500";
+              return (
+                <div key={key} className="flex items-center gap-2 text-[10px]">
+                  <span className={`w-20 uppercase ${textMuted}`}>{key}</span>
+                  <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${theme === "dark" ? "bg-slate-800" : "bg-slate-200"}`}>
+                    <div className={`h-full ${barColor}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className={`w-10 text-right ${textMuted}`}>{daily.complete ? Math.round(daily.value) : "—"}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* STAPLES TOGGLE */}
         <div className={`flex items-center justify-between p-3 rounded-xl mb-6 ${surfaceMuted}`}>
@@ -505,36 +547,63 @@ const App = () => {
                   </div>
 
                   <div className="grid grid-cols-1 gap-3">
-                    {cat.items.map((item) => {
+                    {/* ibsMode sorts high-FODMAP items to the bottom of each
+                        module (stable sort — doesn't otherwise reorder) but
+                        never hides them; tolerance is individual. */}
+                    {(userProfile.ibsMode
+                      ? [...cat.items].sort((a, b) => (a.fodmap === 'high' ? 1 : 0) - (b.fodmap === 'high' ? 1 : 0))
+                      : cat.items
+                    ).map((item) => {
                       const qty = cart[item.id] || 0;
                       const price = resolvePrice(item, priceOverrides);
+                      const override = priceOverrides[item.id];
+                      const priceStale = override?.updatedAt ? isPriceStale(override.updatedAt) : false;
+                      const isDeemphasized = userProfile.ibsMode && item.fodmap === 'high';
+
+                      const single = aggregateNutrients([{ item, qty: 1 }]);
+                      const unitKcal = valuePerCurrency(single.kcal.complete ? single.kcal.value : null, price);
+                      const unitProtein = valuePerCurrency(single.protein.complete ? single.protein.value : null, price);
 
                         return (
                           <div key={item.id} className="flex items-center gap-3">
                             <div
                               onClick={(e) => handleCardTap(e, item.id)}
-                              className={`flex-1 p-3 rounded-2xl border transition-all duration-200 cursor-pointer ripple-card ${qty > 0 ? (theme === "dark" ? "bg-slate-900 border-rose-500/30 shadow-sm" : "bg-rose-50 border-rose-200 shadow-sm") : panelStrong}`}
+                              title={isDeemphasized ? (item.prep ? `High FODMAP — ${item.prep}` : "High FODMAP") : undefined}
+                              className={`flex-1 p-3 rounded-2xl border transition-all duration-200 cursor-pointer ripple-card ${isDeemphasized ? 'opacity-60' : ''} ${qty > 0 ? (theme === "dark" ? "bg-slate-900 border-rose-500/30 shadow-sm" : "bg-rose-50 border-rose-200 shadow-sm") : panelStrong}`}
                             >
                               <div className="flex items-center justify-between mb-1">
-                                <div className={`font-semibold text-sm ${qty > 0 ? (theme === "dark" ? "text-slate-100" : "text-slate-900") : textSubtle}`}>{item.name}</div>
-                                <div className={`text-xs font-mono ${textMuted}`}>{price == null ? "—" : Math.round(price)}</div>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {isDeemphasized && <Flag size={11} className="text-amber-500 shrink-0" />}
+                                  <div className={`font-semibold text-sm truncate ${qty > 0 ? (theme === "dark" ? "text-slate-100" : "text-slate-900") : textSubtle}`}>{item.name}</div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {priceStale && <Clock size={10} className="text-amber-500" title={`Price last updated ${new Date(override.updatedAt).toLocaleDateString()} — may be stale`} />}
+                                  <div className={`text-xs font-mono ${textMuted}`}>{price == null ? "—" : Math.round(price)}</div>
+                                </div>
                               </div>
-                              {/* TODO(phase3): item.tags exists in the data model but is never rendered here. */}
-                              <div className={`flex gap-2 text-[10px] uppercase ${textMuted}`}>
+                              <div className={`flex flex-wrap gap-1 text-[10px] uppercase mb-1 ${textMuted}`}>
                                 <span className={`px-1.5 rounded ${chipMuted}`}>{item.qty}</span>
+                                {(item.tags || []).map((tag) => (
+                                  <span key={tag} className={`px-1.5 rounded ${theme === "dark" ? "bg-slate-800/70 text-slate-500" : "bg-slate-200/70 text-slate-500"}`}>{tag}</span>
+                                ))}
+                              </div>
+                              <div className={`text-[10px] ${textMuted}`}>
+                                {unitKcal != null ? `${unitKcal.toFixed(1)} kcal/EGP` : "—"} · {unitProtein != null ? `${unitProtein.toFixed(1)}g protein/EGP` : "—"}
                               </div>
                             </div>
-                            {/* TODO(phase3): divisible:false items should force integer qty and drop step="0.1". */}
                             <div className={`flex items-center gap-2 rounded-xl p-1 ${qty > 0 ? (theme === "dark" ? 'bg-slate-800' : 'bg-slate-100 border border-slate-200') : (theme === "dark" ? 'bg-slate-900 border border-slate-800' : 'bg-slate-100 border border-slate-200')}`}>
                               <button onClick={() => updateQuantity(item.id, -1)} className={`w-8 h-8 flex items-center justify-center rounded-lg ${qty > 0 ? (theme === "dark" ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-200 text-slate-700') : 'text-slate-400 pointer-events-none'}`}>
                                 {qty === 1 ? <Trash2 size={14} /> : <Minus size={14} />}
                               </button>
                               <input
                                 type="number"
-                                step="0.1"
+                                step={item.divisible === false ? "1" : "0.1"}
                                 min="0"
                                 value={qty}
-                                onChange={(e) => setQuantity(item.id, parseFloat(e.target.value))}
+                                onChange={(e) => {
+                                  const raw = parseFloat(e.target.value);
+                                  setQuantity(item.id, item.divisible === false ? Math.round(raw) : raw);
+                                }}
                                 className={`w-16 text-center text-sm font-semibold rounded-lg border focus:border-rose-500 focus:outline-none py-1 ${theme === "dark" ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'} ${qty > 0 ? 'border-rose-500/50' : ''}`}
                               />
                               <button onClick={() => updateQuantity(item.id, 1)} className={`w-8 h-8 flex items-center justify-center rounded-lg ${theme === "dark" ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-900 text-slate-100 hover:bg-slate-800'}`}><Plus size={14} /></button>
@@ -611,25 +680,53 @@ const App = () => {
   );
 };
 
-// Sub-components kept same as previous (StatCard, Logo, etc.)
-const StatCard = ({ icon, label, value, known = true, limit, unit, isCurrency, theme = "dark" }) => {
-  let colorClass = "text-slate-400";
-  if (!known) {
-    colorClass = "text-slate-500";
-  } else if (isCurrency) {
-    colorClass = value > limit ? "text-rose-400" : "text-emerald-400";
-  } else {
-    const ratio = limit ? value / limit : 0;
-    if (ratio >= 0.95) colorClass = "text-emerald-400";
-    else if (ratio >= 0.75) colorClass = "text-amber-400";
-    else colorClass = "text-rose-400";
+// Colors a macro tile by distance from its floor/ceiling — unknown stays
+// neutral rather than reading as a failure, over-ceiling reads as amber
+// (a warn per the advisor, not an error), and a macro with no target at
+// all (carbs) never gets judged, just displayed.
+function macroColorClass(complete, value, floor, ceiling, theme) {
+  if (!complete) return "text-slate-500";
+  if (ceiling != null && value > ceiling) return "text-amber-400";
+  if (floor != null) {
+    const ratio = floor > 0 ? value / floor : 1;
+    if (ratio < 0.7) return "text-rose-400";
+    if (ratio < 1) return "text-amber-400";
+    return "text-emerald-400";
   }
+  return theme === "dark" ? "text-slate-300" : "text-slate-600";
+}
+
+const tileSurface = (theme) => (theme === "dark" ? "bg-slate-900/60 border-slate-800/60" : "bg-white border-slate-200");
+
+const MacroTile = ({ theme, label, value, complete, floor, ceiling, unit }) => {
+  const color = macroColorClass(complete, value, floor, ceiling, theme);
   return (
-    <div className={`p-3 rounded-2xl border flex flex-col items-center justify-center text-center shadow-sm ${theme === "dark" ? "bg-slate-900/60 border-slate-800/60" : "bg-white border-slate-200"}`}>
-      <div className="text-slate-500 mb-1.5 opacity-80">{icon}</div>
-      <div className={`text-lg font-bold leading-none mb-1 ${colorClass}`}>{known ? Math.round(value) : "—"}</div>
-      <div className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">{label}</div>
+    <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center shadow-sm ${tileSurface(theme)}`}>
+      <div className={`text-sm font-bold leading-none mb-1 ${color}`}>{complete ? `${Math.round(value)}${unit}` : "—"}</div>
+      <div className="text-[8px] text-slate-500 font-medium uppercase tracking-widest">{label}</div>
     </div>
+  );
+};
+
+const MicroTile = ({ theme, dailyNutrients, targets, expanded, onToggle }) => {
+  const known = MICRO_KEYS.filter((k) => dailyNutrients[k].complete);
+  const onTarget = known.filter((k) => {
+    const floor = targets[k]?.floor;
+    return floor != null && dailyNutrients[k].value >= floor * MICRO_TARGET_RATIO;
+  });
+  const color = known.length === 0
+    ? "text-slate-500"
+    : onTarget.length === MICRO_KEYS.length ? "text-emerald-400" : onTarget.length >= 8 ? "text-amber-400" : "text-rose-400";
+  return (
+    <button
+      onClick={onToggle}
+      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center shadow-sm transition-colors ${tileSurface(theme)} ${theme === "dark" ? "hover:border-slate-700" : "hover:border-slate-300"}`}
+    >
+      <div className={`text-sm font-bold leading-none mb-1 ${color}`}>{onTarget.length}/{MICRO_KEYS.length}</div>
+      <div className="text-[8px] text-slate-500 font-medium uppercase tracking-widest flex items-center gap-0.5">
+        Micros {expanded ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
+      </div>
+    </button>
   );
 };
 

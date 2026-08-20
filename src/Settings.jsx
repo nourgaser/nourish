@@ -20,6 +20,16 @@ const numOrNull = (v) => {
   return Number.isNaN(n) ? null : n;
 };
 
+// edibleFraction can never legitimately be outside [0, 1] — it's the share
+// of a pack's weight that's edible, not a percentage. Clamped here (not
+// just via the input's max attribute, which type="number" doesn't actually
+// enforce) so a typo like "90" instead of "0.9" can't silently 90x every
+// nutrient this item contributes.
+const numOrClamped01 = (v) => {
+  const n = numOrNull(v);
+  return n == null ? null : Math.min(1, Math.max(0, n));
+};
+
 // Compact per-100g editor reused for catalog items and staples. Blank means
 // unknown, never 0 — the app treats a blank field as `null` all the way
 // through the aggregation math.
@@ -112,7 +122,7 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
       items: (cat.items || []).map((item) => ({
         ...item,
         packGrams: numOrNull(item.packGrams),
-        edibleFraction: item.edibleFraction === '' || item.edibleFraction == null ? null : Number(item.edibleFraction),
+        edibleFraction: numOrClamped01(item.edibleFraction),
         shelfLifeDays: numOrNull(item.shelfLifeDays),
         effort: numOrNull(item.effort),
         defaultPrice: numOrNull(item.defaultPrice),
@@ -710,15 +720,16 @@ export const Settings = ({ currentProfile, currentPrices, currentStaples, curren
                             />
                           </div>
                           <div className="w-full sm:w-20">
-                            <label className={`text-[10px] uppercase font-bold ${labelTone}`}>Edible %</label>
+                            <label className={`text-[10px] uppercase font-bold ${labelTone}`}>Edible frac.</label>
                             <input
                               type="number"
                               step="0.05"
                               min="0"
                               max="1"
+                              placeholder="0.9 = 90%"
                               className={`w-full rounded p-2 text-sm focus:border-cyan-400 outline-none ${inputBase}`}
                               value={item.edibleFraction ?? ''}
-                              onChange={(e) => updateItemField(cat.id, item.id, 'edibleFraction', numOrNull(e.target.value))}
+                              onChange={(e) => updateItemField(cat.id, item.id, 'edibleFraction', numOrClamped01(e.target.value))}
                             />
                           </div>
                           <div className="flex flex-col items-center gap-1 sm:mt-5">

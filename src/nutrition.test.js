@@ -97,6 +97,16 @@ describe("aggregateNutrients", () => {
     // 500g @ 100kcal/100g = 500, plus 1000g @ 50kcal/100g = 500 -> 1000 total
     expect(result.kcal).toEqual({ value: 1000, complete: true });
   });
+
+  it("treats a genuinely zero-weight part as a known zero, not unknown, even with no composition data", () => {
+    // 0g of anything contributes 0 of every nutrient regardless of whether
+    // its per100g is known — this is what lets an unconfigured staple (see
+    // staplesDailyNutrients) contribute a known zero instead of blocking
+    // the whole total.
+    const zeroWeight = { ...UNKNOWN_ITEM, edibleFraction: 0 };
+    const result = aggregateNutrients([{ item: zeroWeight, qty: 1 }]);
+    expect(result.kcal).toEqual({ value: 0, complete: true });
+  });
 });
 
 describe("staplesDailyNutrients", () => {
@@ -116,6 +126,29 @@ describe("staplesDailyNutrients", () => {
   it("returns an all-zero, complete result for an empty staples config", () => {
     const result = staplesDailyNutrients({ items: [] });
     expect(result.kcal).toEqual({ value: 0, complete: true });
+  });
+
+  it("treats an unset gramsPerDay as 0 (not counted), not unknown, even with no per100g data", () => {
+    // The out-of-the-box state: gramsPerDay is a planning input the user
+    // hasn't gotten to yet, not a hidden food-science fact — it shouldn't
+    // permanently block the whole daily total the way a missing per100g
+    // value would for something actually in the cart.
+    const staples = { items: [{ ...UNKNOWN_ITEM, gramsPerDay: null }] };
+    const result = staplesDailyNutrients(staples);
+    expect(result.kcal).toEqual({ value: 0, complete: true });
+  });
+
+  it("stays complete overall when some staples are configured and others are still untouched", () => {
+    const rice = { ...TEST_ITEM, id: "rice", gramsPerDay: 150 }; // configured, known composition
+    const untouchedOil = { ...UNKNOWN_ITEM, id: "oil", gramsPerDay: null }; // never configured
+    const result = staplesDailyNutrients({ items: [rice, untouchedOil] });
+    expect(result.kcal).toEqual({ value: 150, complete: true });
+  });
+
+  it("still reports incomplete for a staple that's partially configured (grams set, composition not)", () => {
+    const halfConfigured = { ...UNKNOWN_ITEM, gramsPerDay: 10 }; // explicit intake, unknown composition
+    const result = staplesDailyNutrients({ items: [halfConfigured] });
+    expect(result.kcal).toEqual({ value: 0, complete: false });
   });
 });
 

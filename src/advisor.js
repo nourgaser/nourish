@@ -12,10 +12,14 @@ export const SEVERITY_RANK = { error: 0, warn: 1, info: 2 };
 // Targets don't cover carbs (it's the "remainder" macro once
 // protein/fat/fiber are set) — everything else is a tracked floor/ceiling.
 const TRACKED_NUTRIENT_KEYS = NUTRIENT_KEYS.filter((k) => k !== "carbs");
-const MICRO_KEYS = [
+export const MICRO_KEYS = [
   "calcium", "iron", "zinc", "magnesium", "potassium",
   "folate", "vitA", "vitC", "vitD", "b12", "omega3",
 ];
+// "On target" for a micro means at least 80% of its floor — shared with the
+// UI's Micros tile so the collapsed advisor finding and the expanded
+// coverage bars never disagree about what counts as a gap.
+export const MICRO_TARGET_RATIO = 0.8;
 
 function finding(severity, code, message, extra = {}) {
   return { severity, code, message, ...extra };
@@ -173,7 +177,7 @@ function micronutrientFindings({ dailyNutrients, targets }) {
   const below = MICRO_KEYS.filter((key) => {
     const daily = dailyNutrients[key];
     const floor = targets[key]?.floor;
-    return daily?.complete && floor != null && daily.value < floor * 0.8;
+    return daily?.complete && floor != null && daily.value < floor * MICRO_TARGET_RATIO;
   });
   if (below.length === 0) return [];
   return [finding(
