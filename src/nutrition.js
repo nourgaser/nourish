@@ -165,10 +165,12 @@ export function valuePerCurrency(nutrientValue, price) {
 
 // --- misc pure helpers -------------------------------------------------
 
+export function formatDays(days) {
+  if (days == null) return "?";
+  return Number.isInteger(days) ? String(days) : days.toFixed(1);
+}
+
 export function interpolateInstruction(instruction, tripDurationDays) {
   if (!instruction) return instruction;
-  const label = tripDurationDays == null
-    ? "?"
-    : (Number.isInteger(tripDurationDays) ? String(tripDurationDays) : tripDurationDays.toFixed(1));
-  return instruction.replace(/\{days\}/g, label);
+  return instruction.replace(/\{days\}/g, formatDays(tripDurationDays));
 }

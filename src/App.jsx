@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Activity, ShoppingBag, Wallet, Minus, Plus,
-  RefreshCw, ChevronRight, AlertCircle, ShoppingCart, Trash2, CheckCircle2, XCircle,
+  RefreshCw, ChevronRight, ChevronDown, ChevronUp, AlertCircle, Info, ShoppingCart, Trash2, CheckCircle2, XCircle,
   Settings as SettingsIcon, Sun, Moon
 } from "lucide-react";
 import { DEFAULT_CATEGORIES, DEFAULT_PROFILE, DEFAULT_STAPLES, DEFAULT_TARGETS, DEFAULT_PERSONAL } from "./data";
@@ -14,6 +14,7 @@ import {
   resolvePrice,
   interpolateInstruction,
 } from "./nutrition";
+import { evaluateBasket, canCheckout as advisorCanCheckout } from "./advisor";
 import { Logo } from "./Logo";
 import { Onboarding } from "./Onboarding";
 import { Settings } from "./Settings";
@@ -83,6 +84,7 @@ const App = () => {
   const [includeStaples, setIncludeStaples] = useState(false);
   const [viewMode, setViewMode] = useState("plan");
   const [showSettings, setShowSettings] = useState(false);
+  const [showAllFindings, setShowAllFindings] = useState(false);
 
   // Prevent background scroll when overlays are open
   useEffect(() => {
@@ -329,7 +331,7 @@ const App = () => {
     const finalCost = tripCostResult.value + restockCost.value;
     const costComplete = tripCostResult.complete && restockCost.complete;
 
-    return { finalCost, costComplete, dailyNutrients, totalItems, categoryCounts, categoryQuantities };
+    return { finalCost, costComplete, dailyNutrients, totalItems, categoryCounts, categoryQuantities, entries };
   }, [cart, includeStaples, userProfile, priceOverrides, staplesConfig, categories]);
 
 
@@ -339,59 +341,34 @@ const App = () => {
   }
 
   // --- ADVISOR LOGIC ---
-  // Stopgap single-message advisor for Phase 1 — Phase 2 replaces this with
-  // a rule engine returning a sorted list of findings. This version exists
-  // only to satisfy Phase 1's own bar: never report zeros for unknown data.
-  const getSmartAdvice = () => {
-    if (!stats.costComplete) {
-      return { type: 'info', text: "Some prices are still unknown — cost total is a partial figure." };
-    }
+  // Restock cost is added to both spend and the limit here — deliberate,
+  // existing behavior: staples restocking is treated as a separate,
+  // always-affordable pantry expense outside the discretionary trip budget.
+  // Net effect: toggling it on doesn't change whether the trip itself is
+  // judged over budget.
+  const staples = staplesConfig || DEFAULT_STAPLES;
+  const restockCostValue = includeStaples ? staplesRestockCost(staples, priceOverrides).value : 0;
 
-    const staples = staplesConfig || DEFAULT_STAPLES;
-    // Restock cost is added to both spend and the limit here — deliberate,
-    // existing behavior: staples restocking is treated as a separate,
-    // always-affordable pantry expense outside the discretionary trip
-    // budget, not a fix Phase 0 was asked to make. Net effect: toggling it
-    // on doesn't change whether the trip itself is judged over budget.
-    const restockCost = includeStaples ? staplesRestockCost(staples, priceOverrides).value : 0;
-    const budgetLimit = userProfile.budgetLimit + restockCost;
-    const budgetGrace = 50;
-    const overBudget = Math.round(stats.finalCost - budgetLimit);
+  const findings = evaluateBasket({
+    entries: stats.entries,
+    categories,
+    categoryCounts: stats.categoryCounts,
+    dailyNutrients: stats.dailyNutrients,
+    targets: userProfile.targets,
+    tripDurationDays: userProfile.tripDurationDays,
+    finalCost: stats.finalCost,
+    costComplete: stats.costComplete,
+    budgetLimit: userProfile.budgetLimit + restockCostValue,
+    budgetGrace: 50,
+  });
+  const canCheckout = advisorCanCheckout(findings);
+  const [topFinding, ...restFindings] = findings;
+  const advice = topFinding || { severity: 'success', message: "Plan looks solid. Ready to shop." };
 
-    if (overBudget > budgetGrace) {
-      return { type: 'error', text: `Over budget by ${overBudget} EGP. (Max buffer ${budgetGrace})` };
-    }
-    if (overBudget > 0) {
-      return { type: 'warn', text: `Over budget by ${overBudget} EGP but within the ${budgetGrace} EGP buffer.` };
-    }
-
-    // Category Mins
-    for (const cat of categories) {
-      if (stats.categoryCounts[cat.id] < cat.minSelection) {
-        return { type: 'warn', text: `Add ${cat.minSelection - stats.categoryCounts[cat.id]} more item(s) to ${cat.title}.` };
-      }
-    }
-
-    // Macros — floors are now explicit editable targets, not a hidden buffer.
-    if (!stats.dailyNutrients.kcal.complete || !stats.dailyNutrients.protein.complete) {
-      return { type: 'info', text: "Nutrition data is incomplete for items in your cart — add per-100g values to get real advice." };
-    }
-    if (stats.dailyNutrients.kcal.value < userProfile.targets.kcal.floor) {
-      return { type: 'warn', text: `Low Calories (${Math.round(stats.dailyNutrients.kcal.value)}). Goal: ${userProfile.targets.kcal.target}.` };
-    }
-    if (stats.dailyNutrients.protein.value < userProfile.targets.protein.floor) {
-      return { type: 'warn', text: `Low Protein. Goal: ${userProfile.targets.protein.floor}g+.` };
-    }
-
-    return { type: 'success', text: "Plan looks solid. Ready to shop." };
-  };
-
-  const advice = getSmartAdvice();
-  const canCheckout = advice.type !== 'error';
-  const bannerTone = (tone) => {
-    if (tone === 'error') return theme === "dark" ? "bg-rose-500/10 border-rose-500/50 text-rose-200" : "bg-rose-50 border-rose-200 text-rose-800";
-    if (tone === 'warn') return theme === "dark" ? "bg-amber-500/10 border-amber-500/50 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-800";
-    if (tone === 'info') return theme === "dark" ? "bg-sky-500/10 border-sky-500/50 text-sky-200" : "bg-sky-50 border-sky-200 text-sky-800";
+  const bannerTone = (severity) => {
+    if (severity === 'error') return theme === "dark" ? "bg-rose-500/10 border-rose-500/50 text-rose-200" : "bg-rose-50 border-rose-200 text-rose-800";
+    if (severity === 'warn') return theme === "dark" ? "bg-amber-500/10 border-amber-500/50 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-800";
+    if (severity === 'info') return theme === "dark" ? "bg-sky-500/10 border-sky-500/50 text-sky-200" : "bg-sky-50 border-sky-200 text-sky-800";
     return theme === "dark" ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-200" : "bg-emerald-50 border-emerald-200 text-emerald-800";
   };
 
@@ -451,12 +428,39 @@ const App = () => {
           </div>
         </header>
 
-        {/* SMART ADVISOR BANNER */}
-        <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 transition-colors duration-300 ${bannerTone(advice.type)}`}>
-           {advice.type === 'error' ? <XCircle className="shrink-0 mt-0.5" size={18} /> :
-            advice.type === 'warn' ? <AlertCircle className="shrink-0 mt-0.5" size={18} /> :
-            <CheckCircle2 className="shrink-0 mt-0.5" size={18} />}
-           <div className="text-sm font-medium leading-tight">{advice.text}</div>
+        {/* SMART ADVISOR BANNER — shows the highest-severity finding; the
+            rest (never more than a single collapsed row) expand on tap. */}
+        <div className={`mb-6 rounded-xl border transition-colors duration-300 ${bannerTone(advice.severity)}`}>
+          <div className="p-4 flex items-start gap-3">
+             {advice.severity === 'error' ? <XCircle className="shrink-0 mt-0.5" size={18} /> :
+              advice.severity === 'warn' ? <AlertCircle className="shrink-0 mt-0.5" size={18} /> :
+              advice.severity === 'info' ? <Info className="shrink-0 mt-0.5" size={18} /> :
+              <CheckCircle2 className="shrink-0 mt-0.5" size={18} />}
+             <div className="text-sm font-medium leading-tight">{advice.message}</div>
+          </div>
+          {restFindings.length > 0 && (
+            <div className="px-4 pb-3">
+              <button
+                onClick={() => setShowAllFindings(s => !s)}
+                className="text-xs font-semibold underline decoration-dotted flex items-center gap-1 opacity-80 hover:opacity-100"
+              >
+                {showAllFindings ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                {showAllFindings ? "Hide" : `+${restFindings.length} more`}
+              </button>
+              {showAllFindings && (
+                <ul className="mt-2 space-y-1.5">
+                  {restFindings.map((f, i) => (
+                    <li key={f.code + i} className="text-xs leading-snug flex items-start gap-1.5">
+                      <span className="opacity-60">
+                        {f.severity === 'error' ? <XCircle size={12} /> : f.severity === 'warn' ? <AlertCircle size={12} /> : <Info size={12} />}
+                      </span>
+                      {f.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
 
         {/* STATS */}
