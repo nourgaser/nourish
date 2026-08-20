@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Activity, ShoppingBag, Wallet, Minus, Plus,
   RefreshCw, ChevronRight, AlertCircle, ShoppingCart, Trash2, CheckCircle2, XCircle,
@@ -17,6 +17,8 @@ function mergeProfileDefaults(profile) {
     targetDailyCalories = DEFAULT_CONFIG.targetDailyCalories,
     targetDailyProtein = DEFAULT_CONFIG.targetDailyProtein,
     tripDurationDays = DEFAULT_CONFIG.tripDurationDays,
+    // TODO(phase3): ibsMode is persisted and toggleable in Settings but not yet
+    // consumed by any rendering/sorting logic.
     ibsMode = DEFAULT_CONFIG.ibsMode,
     autoIncludeStaples = false,
     ...rest
@@ -109,7 +111,15 @@ const App = () => {
     localStorage.setItem("nourish_theme", theme);
   }, [theme]);
 
+  const didMountCategoryFilter = useRef(false);
   useEffect(() => {
+    // Skip the run that fires immediately after mount: at that point `categories`
+    // still holds its initial-render value, so filtering here would validate a
+    // freshly-loaded cart/priceOverrides against the wrong (stale) item set.
+    if (!didMountCategoryFilter.current) {
+      didMountCategoryFilter.current = true;
+      return;
+    }
     const validIds = new Set(categories.flatMap(cat => (cat.items || []).map(item => item.id)));
     setCart(prev => {
       const next = {};
@@ -247,9 +257,12 @@ const App = () => {
     let tripCals = 0;
     let tripProtein = 0;
     let totalItems = 0;
+    // Distinct items with qty > 0, per module — what minSelection counts against.
     const categoryCounts = {};
+    // Raw quantity totals, kept separately for any UI that wants them.
+    const categoryQuantities = {};
 
-    categories.forEach(c => categoryCounts[c.id] = 0);
+    categories.forEach(c => { categoryCounts[c.id] = 0; categoryQuantities[c.id] = 0; });
 
     categories.forEach(cat => {
       cat.items.forEach(item => {
@@ -260,7 +273,8 @@ const App = () => {
           tripCals += item.calories * qty;
           tripProtein += item.protein * qty;
           totalItems += qty;
-          categoryCounts[cat.id] += qty;
+          categoryCounts[cat.id] += 1;
+          categoryQuantities[cat.id] += qty;
         }
       });
     });
@@ -268,10 +282,12 @@ const App = () => {
     const staples = staplesConfig || STAPLES;
     const tripDuration = Math.max(1, userProfile.tripDurationDays || DEFAULT_CONFIG.tripDurationDays);
     const finalCost = includeStaples ? tripCost + staples.cost : tripCost;
-    const dailyCals = (tripCals / tripDuration) + staples.calories;
-    const dailyProtein = (tripProtein / tripDuration) + staples.protein;
+    const stapleCals = includeStaples ? staples.calories : 0;
+    const stapleProtein = includeStaples ? staples.protein : 0;
+    const dailyCals = (tripCals + stapleCals) / tripDuration;
+    const dailyProtein = (tripProtein + stapleProtein) / tripDuration;
 
-    return { finalCost, dailyCals, dailyProtein, totalItems, categoryCounts };
+    return { finalCost, dailyCals, dailyProtein, totalItems, categoryCounts, categoryQuantities };
   }, [cart, includeStaples, userProfile, priceOverrides, staplesConfig, categories]);
 
 
@@ -285,8 +301,8 @@ const App = () => {
     const staples = staplesConfig || STAPLES;
     const budgetLimit = userProfile.budgetLimit + (includeStaples ? staples.cost : 0);
     const budgetGrace = 50;
-    const overBudget = stats.finalCost - budgetLimit;
-    
+    const overBudget = Math.round(stats.finalCost - budgetLimit);
+
     if (overBudget > budgetGrace) {
       return { type: 'error', text: `Over budget by ${overBudget} EGP. (Max buffer ${budgetGrace})` };
     }
@@ -386,7 +402,7 @@ const App = () => {
 
         {/* STATS */}
         <section className="grid grid-cols-3 gap-3 mb-6">
-          <StatCard theme={theme} icon={<Wallet size={16} />} label="Cost" value={stats.finalCost} limit={userProfile.budgetLimit} unit="EGP" isCurrency />
+          <StatCard theme={theme} icon={<Wallet size={16} />} label="Cost" value={Math.round(stats.finalCost)} limit={userProfile.budgetLimit} unit="EGP" isCurrency />
           <StatCard theme={theme} icon={<Activity size={16} />} label="Cals" value={Math.round(stats.dailyCals)} limit={userProfile.targetDailyCalories} unit="" />
           <StatCard theme={theme} icon={<ShoppingBag size={16} />} label="Prot" value={Math.round(stats.dailyProtein)} limit={userProfile.targetDailyProtein} unit="g" />
         </section>
@@ -436,8 +452,9 @@ const App = () => {
                             >
                               <div className="flex items-center justify-between mb-1">
                                 <div className={`font-semibold text-sm ${qty > 0 ? (theme === "dark" ? "text-slate-100" : "text-slate-900") : textSubtle}`}>{item.name}</div>
-                                <div className={`text-xs font-mono ${textMuted}`}>{price}</div>
+                                <div className={`text-xs font-mono ${textMuted}`}>{Math.round(price)}</div>
                               </div>
+                              {/* TODO(phase3): item.tags exists in the data model but is never rendered here. */}
                               <div className={`flex gap-2 text-[10px] uppercase ${textMuted}`}>
                                 <span className={`px-1.5 rounded ${chipMuted}`}>{item.qty}</span>
                               </div>
@@ -469,7 +486,7 @@ const App = () => {
           <div className="space-y-4 animate-in slide-in-from-right duration-300">
              <div className={`${theme === "dark" ? "bg-slate-900/50 border-rose-500/20" : "bg-rose-50 border-rose-200"} p-6 rounded-2xl border text-center shadow-lg`}>
                 <h3 className={`text-xl font-bold mb-1 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Shopping List</h3>
-                <p className={`font-mono text-lg ${theme === "dark" ? "text-rose-300" : "text-rose-600"}`}>{stats.finalCost} EGP <span className={`${textMuted} text-sm`}>approx</span></p>
+                <p className={`font-mono text-lg ${theme === "dark" ? "text-rose-300" : "text-rose-600"}`}>{Math.round(stats.finalCost)} EGP <span className={`${textMuted} text-sm`}>approx</span></p>
              </div>
              <div className={`${theme === "dark" ? "bg-slate-900 border-slate-800 divide-slate-800/50" : "bg-white border-slate-200 divide-slate-200/70"} rounded-2xl border divide-y`}>
                {includeStaples && (
@@ -477,7 +494,7 @@ const App = () => {
                     <AlertCircle size={16} className={theme === "dark" ? "text-amber-500" : "text-amber-600"} />
                     <div>
                       <div className={`font-medium text-sm ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>Refill Staples</div>
-                      <div className={`text-xs ${textMuted}`}>Rice, Oil, Honey, Spices ({staplesConfig.cost} EGP)</div>
+                      <div className={`text-xs ${textMuted}`}>Rice, Oil, Honey, Spices ({Math.round(staplesConfig.cost)} EGP)</div>
                     </div>
                  </div>
                )}
